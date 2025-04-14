@@ -8,7 +8,7 @@ from dftpy.time_data import timer
 from dftpy.field import DirectField
 from dftpy.functional.fedf import FTK,FTK_dt,get_reduce_t
 from dftpy.constants import Units
-__all__ = ['FT_TF']
+__all__ = ['FT_TF','FT_TFStress']
 
 def FT_ThomasFermiPotential(rho,FT_T):
     """
@@ -41,6 +41,9 @@ def FT_ThomasFermiEnergy(rho,FT_T):
 
     return ene
 
+def FT_TFStress(rho,x=1.0,FT_T,energy=None,**kwargs): 
+    return stress 
+
 def FT_TF(rho, x=1.0, calcType={"E", "V"}, temperature=1e-3, **kwargs):
     """
     temperature in eV 
@@ -48,7 +51,7 @@ def FT_TF(rho, x=1.0, calcType={"E", "V"}, temperature=1e-3, **kwargs):
     """
     # HARTREE2EV = Units.Ha
     # has changed in hartree
-    print( "temperature",temperature)
+    # print( "temperature",temperature)
     FT_T = temperature  
     OutFunctional = FunctionalOutput(name="FT_TF")
     if "E" in calcType:
