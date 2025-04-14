@@ -7,7 +7,7 @@ from dftpy.math_utils import PowerInt
 from dftpy.time_data import timer
 from dftpy.field import DirectField
 from dftpy.functional.fedf import FTK,FTK_dt,get_reduce_t
-
+from dftpy.constants import Units
 __all__ = ['FT_TF']
 
 def FT_ThomasFermiPotential(rho,FT_T):
@@ -42,7 +42,13 @@ def FT_ThomasFermiEnergy(rho,FT_T):
     return ene
 
 @timer 
-def FT_TF(rho, x=1.0, calcType={"E", "V"}, FT_T=1e-3, **kwargs):
+def FT_TF(rho, x=1.0, calcType={"E", "V"}, temperature=1e-3, **kwargs):
+    """
+    temperature in eV 
+    FT_T in Ha 
+    """
+    # HARTREE2EV = Units.Ha
+    FT_T = temperature / Units.Ha 
     OutFunctional = FunctionalOutput(name="FT_TF")
     if "E" in calcType:
         ene = FT_ThomasFermiEnergy(rho,FT_T)
