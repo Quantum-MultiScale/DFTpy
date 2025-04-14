@@ -8,6 +8,7 @@ from dftpy.time_data import timer
 from dftpy.field import DirectField
 from dftpy.functional.fedf import FTK,FTK_dt,get_reduce_t
 
+__all__ = ['FT_TF']
 
 def FT_ThomasFermiPotential(rho,FT_T):
     """
