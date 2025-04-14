@@ -155,7 +155,8 @@ class KEDF(AbstractFunctional):
         names = name2functions(name, KEDFEngines)
         #-----------------------------------------------------------------------
         temperature = options.get('temperature0', None) or options.get('temperature', None)
-        if temperature : names = {**names, 'DTTF':TTF}
+        if not name.startswith('FT_'):
+            if temperature : names = {**names, 'DTTF':TTF}
         #-----------------------------------------------------------------------
         for rho in rhos :
             for key in names :

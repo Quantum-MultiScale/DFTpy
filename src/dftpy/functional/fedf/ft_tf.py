@@ -15,7 +15,7 @@ def FT_ThomasFermiPotential(rho,FT_T):
     Finite Temperature Thomas-Fermi Potential
     """
 
-    ctf = (3.0 / 10.0) * (5.0 / 3.0) * (3.0 * np.pi ** 2) ** (2.0 / 3.0)
+    ctf = (3.0 / 10.0) * (3.0 * np.pi ** 2) ** (2.0 / 3.0)
     t = get_reduce_t(rho,FT_T)
     kappa = FTK(t)
     kappa_dt = FTK_dt(t)
@@ -35,20 +35,21 @@ def FT_ThomasFermiEnergy(rho,FT_T):
     t = get_reduce_t(rho,FT_T) 
     edens = PowerInt(rho, 5, 3)
     kappa = FTK(t)
-    edens *= kappa 
+    edens = kappa * edens
     edens *= (3.0 / 10.0) * (3.0 * np.pi ** 2) ** (2.0 / 3.0)
     ene = edens.sum() * rho.grid.dV
 
     return ene
 
-@timer 
 def FT_TF(rho, x=1.0, calcType={"E", "V"}, temperature=1e-3, **kwargs):
     """
     temperature in eV 
     FT_T in Ha 
     """
     # HARTREE2EV = Units.Ha
-    FT_T = temperature / Units.Ha 
+    # has changed in hartree
+    print( "temperature",temperature)
+    FT_T = temperature  
     OutFunctional = FunctionalOutput(name="FT_TF")
     if "E" in calcType:
         ene = FT_ThomasFermiEnergy(rho,FT_T)
