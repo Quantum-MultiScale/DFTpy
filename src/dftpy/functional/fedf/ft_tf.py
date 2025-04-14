@@ -38,4 +38,14 @@ def FT_ThomasFermiEnergy(rho,FT_T):
     edens *= (3.0 / 10.0) * (3.0 * np.pi ** 2) ** (2.0 / 3.0)
     ene = edens.sum() * rho.grid.dV
 
-    return ene 
+    return ene
+
+@timer 
+def FT_TF(rho, x=1.0, calcType={"E", "V"}, FT_T=1e-3, **kwargs):
+    OutFunctional = FunctionalOutput(name="FT_TF")
+    if "E" in calcType:
+        ene = FT_ThomasFermiEnergy(rho,FT_T)
+        OutFunctional.energy = ene * x 
+    if "V" in calcType:
+        OutFunctional.potential = FT_ThomasFermiPotential(rho,FT_T) * x 
+    return OutFunctional 
