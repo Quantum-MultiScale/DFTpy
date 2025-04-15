@@ -8,7 +8,8 @@ from dftpy.math_utils import PowerInt
 from dftpy.time_data import timer
 from dftpy.field import DirectField
 
-__all__ = ['get_reduce_t','FTK','FTK_dt']
+__all__ = ['get_reduce_t','FTK','FTK_dt','FTK_dt2','FTK_dt3','FTH','FTH_dt','FTH_dt2',
+           'FTZETA','FTZETA_dt','FTXI','FTXI_dt']
 
 # reduced temperature
 def get_reduce_t(rho,FT_T):
@@ -146,4 +147,115 @@ def FTK_dt3(t):
         )
     return K
 
-### 
+#### FTH 
+
+def FTH(t):
+    # Initialize H as an array of the same shape as t
+    H = np.zeros_like(t)
+
+    # Apply the formula element-wise depending on the value of t
+    mask = t >= FTT0
+
+    # For t >= FTT0, apply the first formula
+    H[mask] = (FTH_U[0] +
+               FTH_U[1] * t[mask]**(-1.5) +
+               FTH_U[2] * t[mask]**(-3.0) +
+               FTH_U[3] * t[mask]**(-4.5) +
+               FTH_U[4] * t[mask]**(-6.0) +
+               FTH_U[5] * t[mask]**(-7.5) +
+               FTH_U[6] * t[mask]**(-9.0) +
+               FTH_U[7] * t[mask]**(-10.5))
+
+    # For t < FTT0, apply the second formula
+    H[~mask] = (FTH_D[0] +
+                FTH_D[1] * t[~mask]**(2.0) +
+                FTH_D[2] * t[~mask]**(4.0) +
+                FTH_D[3] * t[~mask]**(6.0) +
+                FTH_D[4] * t[~mask]**(8.0) +
+                FTH_D[5] * t[~mask]**(10.0) +
+                FTH_D[6] * t[~mask]**(12.0) +
+                FTH_D[7] * t[~mask]**(14.0))
+
+    return H
+
+def FTH_dt(t):
+    # Initialize H as an array of the same shape as t
+    H = np.zeros_like(t)
+
+    # Create mask for t >= FTT0
+    mask = t >= FTT0
+
+    # For t >= FTT0
+    H[mask] = (
+        -1.5  * FTH_U[1] * t[mask]**(-2.5) +
+        -3.0  * FTH_U[2] * t[mask]**(-4.0) +
+        -4.5  * FTH_U[3] * t[mask]**(-5.5) +
+        -6.0  * FTH_U[4] * t[mask]**(-7.0) +
+        -7.5  * FTH_U[5] * t[mask]**(-8.5) +
+        -9.0  * FTH_U[6] * t[mask]**(-10.0) +
+        -10.5 * FTH_U[7] * t[mask]**(-11.5)
+    )
+
+    # For t < FTT0
+    H[~mask] = (
+        2.0  * FTH_D[1] * t[~mask]**(1.0) +
+        4.0  * FTH_D[2] * t[~mask]**(3.0) +
+        6.0  * FTH_D[3] * t[~mask]**(5.0) +
+        8.0  * FTH_D[4] * t[~mask]**(7.0) +
+        10.0 * FTH_D[5] * t[~mask]**(9.0) +
+        12.0 * FTH_D[6] * t[~mask]**(11.0) +
+        14.0 * FTH_D[7] * t[~mask]**(13.0)
+    )
+
+    return H
+
+def FTH_dt2(t):
+    # Initialize H as an array of the same shape as t
+    H = np.zeros_like(t)
+
+    # Create mask for t >= FTT0
+    mask = t >= FTT0
+
+    # For t >= FTT0
+    H[mask] = (
+        -1.5  * -2.5  * FTH_U[1] * t[mask]**(-3.5) +
+        -3.0  * -4.0  * FTH_U[2] * t[mask]**(-5.0) +
+        -4.5  * -5.5  * FTH_U[3] * t[mask]**(-6.5) +
+        -6.0  * -7.0  * FTH_U[4] * t[mask]**(-8.0) +
+        -7.5  * -8.5  * FTH_U[5] * t[mask]**(-9.5) +
+        -9.0  * -10.0 * FTH_U[6] * t[mask]**(-11.0) +
+        -10.5 * -11.5 * FTH_U[7] * t[mask]**(-12.5)
+    )
+
+    # For t < FTT0
+    H[~mask] = (
+        2.0  * 1.0  * FTH_D[1] +
+        4.0  * 3.0  * FTH_D[2] * t[~mask]**(2.0) +
+        6.0  * 5.0  * FTH_D[3] * t[~mask]**(4.0) +
+        8.0  * 7.0  * FTH_D[4] * t[~mask]**(6.0) +
+        10.0 * 9.0  * FTH_D[5] * t[~mask]**(8.0) +
+        12.0 * 11.0 * FTH_D[6] * t[~mask]**(10.0) +
+        14.0 * 13.0 * FTH_D[7] * t[~mask]**(12.0)
+    )
+
+    return H
+
+### zeta and xi 
+
+def FTZETA(t):
+    park = FTK_dt(t)
+    return -t*park 
+
+def FTZETA_dt(t): 
+    park = FTK_dt(t)
+    ppark = FTK_dt2(t)
+    return -t*ppark - park
+
+def FTXI(t): 
+    park= FTK_dt(t) 
+    k = FTK(t)
+    return  k-t*park 
+
+def FTXI_dt(t):
+    ppark = FTK_dt2(t) 
+    return -t*ppark 
