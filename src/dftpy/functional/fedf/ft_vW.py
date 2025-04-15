@@ -15,20 +15,20 @@ def get_vW_kedensity(rho):
     positive define vW kinetic energy densiy  
     | \nabla \rho |^2 / (8 \rho) 
     """
-    rhoGrad = rho.gradient()
-    eden = (PowerInt(rhoGrad[0], 2) + PowerInt(rhoGrad[1], 2) + PowerInt(rhoGrad[2], 2)) / rho / 8.0
+    sqrt_rho = rho**0.5
+    srhoGrad = sqrt_rho.gradient()
+    eden = (PowerInt(srhoGrad[0], 2) + PowerInt(srhoGrad[1], 2) + PowerInt(srhoGrad[2], 2)) / 2.0 
     return eden
 
 def vW_GQ(rho,h):
     """
     the vW_GQ function moved from ATLAS 
     """
-    sqrt_rho = PowerInt(rho, 1, 2)
+    sqrt_rho = rho**0.5
     gsrho = sqrt_rho.gradient()
-    
-    grho_x   = ( (h*gsrho[0]).gradient(ipol=0) 
-               + (h*gsrho[1]).gradient(ipol=1) 
-               + (h*gsrho[2]).gradient(ipol=2) )
+    grho_x   = ( (h*gsrho[0]).gradient(ipol=1) 
+               + (h*gsrho[1]).gradient(ipol=2) 
+               + (h*gsrho[2]).gradient(ipol=3) )
     pot = - 0.5 * grho_x/sqrt_rho 
     return pot
 
@@ -40,11 +40,12 @@ def FT_vWPotential(rho,FT_T):
     """
     t = get_reduce_t(rho,FT_T)
     h = FTH(t)
-    h_dt = FTH_dt(t) 
+    h_dt = FTH_dt(t)
+    #print("h",h[1,1,1])
+    #print("h_dt",h_dt[1,1,1])
     tau = get_vW_kedensity(rho) 
     pot = vW_GQ(rho,h)
     pot = pot + (-2.0/3.0) * tau * h_dt * t / rho
-
     return pot 
 
 def FT_vWEnergy(rho,FT_T):
@@ -52,10 +53,10 @@ def FT_vWEnergy(rho,FT_T):
     Finite Temperature vW Energy
     """
     t = get_reduce_t(rho,FT_T)
-    h = FTH(t) 
+    h = FTH(t)
     tau = get_vW_kedensity(rho)
-    eden = tau * h * rho.grid.dV 
-    ene = eden.sum() 
+    eden = tau * h
+    ene = eden.sum() * rho.grid.dV 
     return ene
 
 def FT_vWStress(rho,x=1.0,temperature=1e-3,**kwargs):
@@ -79,7 +80,9 @@ def FT_vW(rho, y=1.0 ,calcType={"E", "V"}, temperature=1e-3, **kwargs):
     OutFunctional = FunctionalOutput(name="FT_VW")
     if "E" in calcType:
         ene = FT_vWEnergy(rho,FT_T)
-        OutFunctional.energy = ene * y 
+        OutFunctional.energy = ene * y
+    #    print("E",ene) 
     if "V" in calcType:
         OutFunctional.potential = FT_vWPotential(rho,FT_T) * y 
+    #    print("V",OutFunctional.potential)
     return OutFunctional 
