@@ -17,6 +17,7 @@ from dftpy.functional.kedf.fp import FP, FPStress
 from dftpy.functional.kedf.wte import WTE, WTEStress
 from dftpy.functional.semilocal_xc import LibXC
 from dftpy.functional.fedf.ft_tf import FT_TF,FT_TFStress
+from dftpy.functional.fedf.ft_vW import FT_vW,FT_vWStress
 from dftpy.mpi import sprint
 from dftpy.utils import name2functions
 from dftpy.functional.kedf.lkt import LKT
@@ -69,6 +70,7 @@ KEDFEngines= {
         "WTE": ("VW", "WTE-NL"),
         ## finite temperature
         "FT_TF" : FT_TF
+        "FT_VW" : FT_vW
         }
 
 def LibXCStress(density, energy=0, **kwargs):
