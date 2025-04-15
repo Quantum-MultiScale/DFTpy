@@ -69,9 +69,10 @@ KEDFEngines= {
         "MGP0": ("TF", "VW", "MGP0-NL"),
         "WTE": ("VW", "WTE-NL"),
         ## finite temperature
-        "FT_TF" : FT_TF
-        "FT_VW" : FT_vW
-        }
+        "FT_TF" : FT_TF,
+        "FT_VW" : FT_vW,
+        "FT_TFVW" :("FT_TF","FT_VW")
+        } 
 
 def LibXCStress(density, energy=0, **kwargs):
     stress = np.eye(3) * energy/density.grid.volume
