@@ -16,7 +16,7 @@ from dftpy.functional.kedf.sm import SM, SMStress
 from dftpy.functional.kedf.fp import FP, FPStress
 from dftpy.functional.kedf.wte import WTE, WTEStress
 from dftpy.functional.semilocal_xc import LibXC
-from dftpy.functional.fedf.ft_tf import FT_TF
+from dftpy.functional.fedf.ft_tf import FT_TF,FT_TFStress
 from dftpy.mpi import sprint
 from dftpy.utils import name2functions
 from dftpy.functional.kedf.lkt import LKT
@@ -67,6 +67,7 @@ KEDFEngines= {
         "MGP0-NL": MGP0,
         "MGP0": ("TF", "VW", "MGP0-NL"),
         "WTE": ("VW", "WTE-NL"),
+        ## finite temperature
         "FT_TF" : FT_TF
         }
 
@@ -91,6 +92,8 @@ KEDFEngines_Stress = {
     "SM": ("TF", "VW", "SM-NL"),
     "FP": ("TF", "VW", "FP-NL"),
     "WTE": ("VW", "WTE-NL"),
+    ## finite temperature 
+    "FT_TF" : FT_TFStress
     }
 
 

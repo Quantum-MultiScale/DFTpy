@@ -41,7 +41,18 @@ def FT_ThomasFermiEnergy(rho,FT_T):
 
     return ene
 
-def FT_TFStress(rho,x=1.0,FT_T,energy=None,**kwargs): 
+def FT_TFStress(rho,x=1.0,temperature=1e-3,**kwargs):
+    """
+    Finite Temperature Thomas-Fermi Stress
+    """
+    kep = FT_TF(rho, x=x, calcType={"E","V"},temperature=temperature)
+    energy = kep.energy
+    pot = kep.potential*rho
+    stress_ii = energy - pot.sum()*rho.grid.dV
+    stress_ii /= rho.grid.volume
+    stress = np.zeros((3, 3))
+    for i in range(3):
+        stress[i, i] = stress_ii
     return stress 
 
 def FT_TF(rho, x=1.0, calcType={"E", "V"}, temperature=1e-3, **kwargs):
