@@ -96,7 +96,9 @@ KEDFEngines_Stress = {
     "FP": ("TF", "VW", "FP-NL"),
     "WTE": ("VW", "WTE-NL"),
     ## finite temperature 
-    "FT_TF" : FT_TFStress
+    "FT_TF" : FT_TFStress,
+    "FT_VW" : FT_vWStress,
+    "FT_TFVW" :("FT_TF","FT_VW")
     }
 
 

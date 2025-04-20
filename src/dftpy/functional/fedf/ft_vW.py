@@ -75,10 +75,24 @@ def FT_vWStress(rho,x=1.0,temperature=1e-3,**kwargs):
     """
     Finite Temperature vW Stress
     """
-    stress = 0.0 
+    stress = np.zeros((3,3))
+    t = get_reduce_t(rho,temperature)
+    h = FTH(t)
+    h_dt = FTH_dt(t)
+    dtdrho =  2.0/3.0 * t / rho
+    rhoq = rho.fft()
+    drhodr = 0.0 
+    grho = rho.gradient()
+    grho2 = (PowerInt(grho[0], 2) + PowerInt(grho[1], 2) + PowerInt(grho[2], 2))
+    stress_ii = (h_dt * grho2 / 8.0  * dtdrho ).sum()
+    for ii in range(0,3):
+        for jj in range(0,3):
+            stress[ii,jj] = np.sum( - h / (4.0 * rho) * grho[ii] * grho[jj] )
     for i in range(3):
-        stress[i, i] = stress_ii
+        stress[i, i] += stress_ii
+    stress *= rho.grid.dV/rho.grid.volume
     return stress 
+    
 
 def FT_vW(rho, y=1.0 ,calcType={"E", "V"}, temperature=1e-3, **kwargs):
     """
