@@ -26,9 +26,21 @@ def vW_GQ(rho,h):
     """
     sqrt_rho = rho**0.5
     gsrho = sqrt_rho.gradient()
+    
+    """
+    old version 
     grho_x   = ( (h*gsrho[0]).gradient(ipol=1) 
                + (h*gsrho[1]).gradient(ipol=2) 
                + (h*gsrho[2]).gradient(ipol=3) )
+    """
+    g = rho.grid.get_reciprocal().g
+    grho_x = np.zeros_like(rho)
+    for icar in range(0, 3): 
+         hx =  h*gsrho[icar]
+         hx_g = hx.fft()
+         hx_g = 1j * g[icar] * hx_g
+         hx = hx_g.ifft(force_real = True)
+         grho_x =  grho_x + hx 
     pot = - 0.5 * grho_x/sqrt_rho 
     return pot
 
