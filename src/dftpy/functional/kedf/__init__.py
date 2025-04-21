@@ -18,7 +18,7 @@ from dftpy.functional.kedf.wte import WTE, WTEStress
 from dftpy.functional.semilocal_xc import LibXC
 from dftpy.functional.fedf.ft_tf import FT_TF,FT_TFStress
 from dftpy.functional.fedf.ft_vW import FT_vW,FT_vWStress
-from dftpy.functional.fedf.ft_GGA import FT_GAA,FT_GGAStress
+from dftpy.functional.fedf.ft_gga import FT_GGA,FT_GGAStress
 from dftpy.mpi import sprint
 from dftpy.utils import name2functions
 from dftpy.functional.kedf.lkt import LKT
@@ -100,7 +100,8 @@ KEDFEngines_Stress = {
     ## finite temperature 
     "FT_TF" : FT_TFStress,
     "FT_VW" : FT_vWStress,
-    "FT_TFVW" :("FT_TF","FT_VW")
+    "FT_TFVW" :("FT_TF","FT_VW"),
+    "FT_GGA" : FT_GGAStress
     }
 
 

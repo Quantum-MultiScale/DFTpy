@@ -6,7 +6,7 @@ from dftpy.functional.functional_output import FunctionalOutput
 from dftpy.math_utils import PowerInt
 from dftpy.time_data import timer
 from dftpy.field import DirectField
-from dftpy.functional.fedf import FTK,FTK_dt,get_reduce_t
+from dftpy.functional.fedf import * 
 from dftpy.constants import Units
 __all__ = ['FT_GGA','FT_GGAStress']
 
@@ -14,13 +14,10 @@ def FT_GGAPotential(rho,FT_T,functional: str = "LKT"):
     """
     Finite Temperature GGA Potential
     """
-    ctf = (3.0 / 10.0) * (3.0 * np.pi ** 2) ** (2.0 / 3.0)
-    t = get_reduce_t(rho,FT_T)
-
     gtot  = rho.gradient() 
     gtot2 = (PowerInt(gtot[0], 2) + PowerInt(gtot[1], 2) + PowerInt(gtot[2], 2))
     
-    vke,kes,eke = FT_GGA_libxclike(rho,sigma,FT_T,functional)
+    vke,kes,eke = FT_GGA_libxclike(rho,gtot2,FT_T,functional)
 
     kes = 2.0*kes 
     kes2 = np.zeros_like(kes)
@@ -67,8 +64,32 @@ def FT_GGAStress(rho,temperature=1e-3,functional: str = "LKT",**kwargs):
     """
     Finite Temperature GGA Stress
     """
+    stress = np.zeros((3,3))
+    gtot  = rho.gradient() 
+    gtot2 = (PowerInt(gtot[0], 2) + PowerInt(gtot[1], 2) + PowerInt(gtot[2], 2))
+    
+    vke,kes,eke = FT_GGA_libxclike(rho,gtot2,temperature,functional)
+
+    kes = 2.0*kes 
+    #kes2 = np.zeros_like(kes)
+    #g = rho.grid.get_reciprocal().g
+    #for icar in range(0, 3): 
+    #    hx =  kes*gtot[icar] 
+    #    hx_g = hx.fft()
+    #    hx_g = 1j * g[icar] * hx_g
+    #    hx = hx_g.ifft(force_real = True)
+    #    kes2 = kes2 + hx 
+
+    stress_ii_den = eke - vke * rho - kes*gtot2 
+
     for i in range(3):
-        stress[i, i] = stress_ii
+        stress[i, i] = stress_ii_den.sum()
+
+    for ii in range(0,3):
+        for jj in range(0,3):
+            stree_tmp = kes * gtot[ii] * gtot[jj]
+            stress[ii,jj] = stress[ii,jj] - stree_tmp.sum()
+    stress *= rho.grid.dV/rho.grid.volume
     return stress 
 
 def FT_GGA(rho:DirectField, functional: str = "LKT", calcType={"E", "V"}, temperature=1e-3, **kwargs):
@@ -82,27 +103,46 @@ def FT_GGA(rho:DirectField, functional: str = "LKT", calcType={"E", "V"}, temper
     FT_T = temperature  
     OutFunctional = FunctionalOutput(name="FT_TF")
     if "E" in calcType:
-        ene = FT_GGAEnergy(rho,FT_T,functional: str = "LKT")
+        ene = FT_GGAEnergy(rho,FT_T,functional)
         OutFunctional.energy = ene 
     if "V" in calcType:
-        OutFunctional.potential = FT_GGAPotential(rho,FT_T,functional: str = "LKT")
+        OutFunctional.potential = FT_GGAPotential(rho,FT_T,functional)
     return OutFunctional
 
-def get_Fs(s2:DirectField,functional: str = "LKT",need_ds2=False):
+def get_Fs(s2,functional: str = "LKT",need_ds2=False):
     """
 
     """
     if functional=="LKT" : 
-        LKTa = 1.3 
+        lkta = 1.3 
         Fs = 1.0/np.cosh(lkta*np.sqrt(s2)) + 5.0/3.0*s2 
         if need_ds2:
-            Fs_ds2 = - lkta*np.tanh(lkta*np.sqrt(S2))/np.cosh(lkta*np.sqrt(s2))/2.0/np.sqrt(s2) + 5.0/3.0
+            Fs_ds2 = (-lkta * np.tanh(lkta * np.sqrt(s2)) / 
+                       (np.cosh(lkta * np.sqrt(s2)) * 2.0 * np.sqrt(s2))) + (5.0 / 3.0)
+    elif functional=="VT84F" :
+        mu = 2.778
+        a  = mu - 40.0/27.0
+        Fs   = 1 - mu * s2 * np.exp(-a*s2)/(1.0+mu*s2) + (1.0-np.exp(-a*s2*s2))*(1.0/s2 - 1.0)  + 5.0/3.0 * s2
+        if need_ds2: 
+            Fs_ds2 = ( 2.0*a*(1.0/s2-1.0) *s2 * np.exp(-a*s2*s2) 
+                   - (1.0-np.exp(-a*s2*s2) )/ s2/s2        
+                   + mu*mu * s2 * np.exp(-a*s2)/(mu*s2+1.0)/(mu*s2+1.0) 
+                   - mu * np.exp(-a*s2)/(mu*s2+1.0)        
+                   + a*mu * s2 * np.exp(-a*s2)/(mu*s2+1.0) + 5.0/3.0 )
+    elif functional=="VW" :
+        Fs   = 5.0/3.0 * s2 
+        if need_ds2: 
+            Fs_ds2 = (5.0 / 3.0)
 
+    elif functional=="TFVW" :
+        Fs   = 1.0 + 5.0/3.0 * s2
+        if need_ds2:
+            Fs_ds2 = (5.0 / 3.0)
+        
     if need_ds2:
         return Fs,Fs_ds2
-    else
+    else : 
         return Fs 
-    return 
 
 
 def get_s2(rho,need_g=False) : 
@@ -113,6 +153,7 @@ def get_s2(rho,need_g=False) :
     gtot  = rho.gradient() 
     gtot2 = (PowerInt(gtot[0], 2) + PowerInt(gtot[1], 2) + PowerInt(gtot[2], 2))
     s2 = gtot2/(4.0*ckf**2*PowerInt(rho,8,3))
+    s2[s2 < 1e-15] = 1e-15
     if not need_g : 
         return s2 
     s2dg = 1.0 / ( 4.0 * ckf**2 * rho**(8.0/3.0) )
@@ -125,7 +166,8 @@ def FT_GGA_libxclike(rho,sigma,FT_T,functional: str = "LKT") :
     ckf = (3.0 * np.pi ** 2) ** (1.0 / 3.0)
     tau_tf = ctf * PowerInt(rho,5,3)
 
-    s2 = sigma/(4.0*ckf**2*PowerInt(rho,8,3)) 
+    s2 = sigma/(4.0*ckf**2*PowerInt(rho,8,3))
+    s2[s2 < 1e-15] = 1e-15
     s2_dg = 1.0 / ( 4.0 * ckf**2 * rho**(8.0/3.0) ) 
     s2_drho = -(8.0/3.0) * s2 / rho 
 
@@ -142,7 +184,7 @@ def FT_GGA_libxclike(rho,sigma,FT_T,functional: str = "LKT") :
     s2_tau   = s2*(h-t*h_dt)/xi
     s2_sigma = s2*(t*h_dt)/zeta
 
-    fs_tau,fs_tau_ds2 = get_Fs(s2_tau,functional=functional,need_ds2=)
+    fs_tau,fs_tau_ds2 = get_Fs(s2_tau,functional=functional,need_ds2=True)
     fs_sigma,fs_sigma_ds2 = get_Fs(s2_sigma,functional=functional,need_ds2=True)
 
     fs_sigma     = 2.0 - fs_sigma
@@ -152,7 +194,7 @@ def FT_GGA_libxclike(rho,sigma,FT_T,functional: str = "LKT") :
     
     eke = tau_gga
 
-    vke = np.zeros_lile(rho)
+    vke = np.zeros_like(rho)
     
     # part 1 \tau_tf
     vke = vke + (5.0/3.0)*tau_gga/rho
