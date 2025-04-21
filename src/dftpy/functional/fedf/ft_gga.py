@@ -138,6 +138,11 @@ def get_Fs(s2,functional: str = "LKT",need_ds2=False):
         Fs   = 1.0 + 5.0/3.0 * s2
         if need_ds2:
             Fs_ds2 = (5.0 / 3.0)
+
+    elif functional=="TF" :
+        Fs   = 0.0 * s2
+        if need_ds2:
+            Fs_ds2 = Fs
         
     if need_ds2:
         return Fs,Fs_ds2
