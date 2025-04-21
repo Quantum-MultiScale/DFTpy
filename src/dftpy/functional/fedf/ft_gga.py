@@ -185,6 +185,8 @@ def FT_GGA_libxclike(rho,sigma,FT_T,functional: str = "LKT") :
     zeta_dt = FTZETA_dt(t)
     xi = FTXI(t)
     xi_dt = FTXI_dt(t)
+    ### debug 
+    #print(rho[0,0,0],h_dt2[0,0,0],zeta[0,0,0],zeta_dt[0,0,0],xi[0,0,0],xi_dt[0,0,0])
 
     s2_tau   = s2*(h-t*h_dt)/xi
     s2_sigma = s2*(t*h_dt)/zeta
