@@ -47,11 +47,10 @@ extra = [
 	"scikit-image>=0.24.0",
 	"upf-to-json>=0.9.5",
 ]
-# TODO: recover this when CI/CD config for MPI is done.
-#mpi = [
-#	"mpi4py",
-#	"mpi4py-fft",
-#]
+mpi = [
+	"mpi4py",
+	"mpi4py-fft",
+]
 
 [dependency-groups]
 docs = [
@@ -66,7 +65,7 @@ docs = [
 test = [
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
-#    "pytest-mpi>=0.6", # TODO: recover this line when CI/CD config for MPI is done.
+    "pytest-mpi>=0.6",
 ]
 
 [project.urls]
