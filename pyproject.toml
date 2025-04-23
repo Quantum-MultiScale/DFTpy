@@ -78,3 +78,12 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = [
+	"--verbose",
+	"--strict-markers",
+	"--strict-config",
+	"-ra"
+]
+testpaths = "tests"
