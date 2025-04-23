@@ -16,3 +16,6 @@ doc/source/tutorials/config.rst
 
 # Jetbrains IDEs
 .idea/
+
+# coverage report in HTML
+htmlcov/
