@@ -118,8 +118,8 @@ def get_Fs(s2,functional: str = "LKT",need_ds2=False):
         safe_s2=np.clip(s2,1e-15,500)
         Fs = 1.0/np.cosh(lkta*np.sqrt(safe_s2)) + 5.0/3.0*safe_s2
         if need_ds2:
-            Fs_ds2 = (-lkta * np.tanh(lkta * np.sqrt(s2)) / 
-                       (np.cosh(lkta * np.sqrt(s2)) * 2.0 * np.sqrt(s2))) + (5.0 / 3.0)
+            Fs_ds2  = (-lkta * np.tanh(lkta * np.sqrt(safe_s2)) /
+                       (np.cosh(lkta * np.sqrt(safe_s2)) * 2.0 * np.sqrt(safe_s2))) + (5.0 / 3.0)
     elif functional=="VT84F" :
         mu = 2.778
         a  = mu - 40.0/27.0
