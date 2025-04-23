@@ -14,14 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ !startsWith(github.head_ref, 'docs-') && !startsWith(github.head_ref, 'release-') }}
     concurrency: # keep latest workflow and cancel exist workflow in PR
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.python-version }}
       cancel-in-progress: true
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9"]
-#        python-version: ["3.9, 3.10, 3.11"]
+        python-version: ["3.9", "3.10", "3.11"]
     steps:
     - uses: actions/checkout@v4
     - name: Install uv
@@ -35,11 +34,13 @@ jobs:
       run: |
         uv python install ${{ matrix.python-version }} &&
         uv venv --python ${{ matrix.python-version }} &&
-        uv sync --active --all-extras --all-groups &&
-        source .venv/bin/activate
+        uv sync --active --all-groups --no-extra mpi
+#        uv sync --active --all-extras --all-groups &&
 
     - name: Run tests
-      run: pytest
+      run: |
+        source .venv/bin/activate
+        pytest
 
 #      - name: Upload coverage reports to Codecov
 #        uses: codecov/codecov-action@v5
