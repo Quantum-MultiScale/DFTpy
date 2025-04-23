@@ -1,6 +1,8 @@
 # Collection of finite temperature Thomas Fermi functional
+from typing import Any
 
 import numpy as np
+from numpy import ndarray, dtype
 
 from dftpy.functional.functional_output import FunctionalOutput
 from dftpy.math_utils import PowerInt
@@ -10,13 +12,16 @@ from dftpy.functional.fedf import *
 from dftpy.constants import Units
 __all__ = ['FT_GGA','FT_GGAStress']
 
+mark=0
+
+def mc_print
+
 def FT_GGAPotential(rho,FT_T,functional: str = "LKT"):
     """
     Finite Temperature GGA Potential
     """
     gtot  = rho.gradient() 
     gtot2 = (PowerInt(gtot[0], 2) + PowerInt(gtot[1], 2) + PowerInt(gtot[2], 2))
-    
     vke,kes,eke = FT_GGA_libxclike(rho,gtot2,FT_T,functional)
 
     kes = 2.0*kes 
@@ -115,6 +120,8 @@ def get_Fs(s2,functional: str = "LKT",need_ds2=False):
     """
     if functional=="LKT" : 
         lkta = 1.3
+#        if s2.max()>500 :
+#            print("maxs2",s2.max())
         safe_s2=np.clip(s2,1e-15,500)
         Fs = 1.0/np.cosh(lkta*np.sqrt(safe_s2)) + 5.0/3.0*safe_s2
         if need_ds2:
@@ -143,7 +150,7 @@ def get_Fs(s2,functional: str = "LKT",need_ds2=False):
     elif functional=="TF" :
         Fs   = 0.0 * s2
         if need_ds2:
-            Fs_ds2 = Fs
+            Fs_ds2 = 0.0*s2
         
     if need_ds2:
         return Fs,Fs_ds2
@@ -171,8 +178,10 @@ def FT_GGA_libxclike(rho,sigma,FT_T,functional: str = "LKT") :
     ctf = (3.0/10.0) * ((3.0 * np.pi ** 2) ** (1.0 / 3.0)) ** 2.0
     ckf = (3.0 * np.pi ** 2) ** (1.0 / 3.0)
     tau_tf = ctf * PowerInt(rho,5,3)
-
+    print("sigma", sigma.max())
     s2 = sigma/(4.0*ckf**2*PowerInt(rho,8,3))
+    print("rho",rho.min())
+    print("s2", s2.max())
     s2[s2 < 1e-15] = 1e-15
     s2_dg = 1.0 / ( 4.0 * ckf**2 * rho**(8.0/3.0) ) 
     s2_drho = -(8.0/3.0) * s2 / rho 
@@ -192,6 +201,8 @@ def FT_GGA_libxclike(rho,sigma,FT_T,functional: str = "LKT") :
     s2_tau   = s2*(h-t*h_dt)/xi
     s2_sigma = s2*(t*h_dt)/zeta
 
+    print("s2_tau",s2_tau.max())
+    print("s2_sigma",s2_sigma.max())
     fs_tau,fs_tau_ds2 = get_Fs(s2_tau,functional=functional,need_ds2=True)
     fs_sigma,fs_sigma_ds2 = get_Fs(s2_sigma,functional=functional,need_ds2=True)
 
