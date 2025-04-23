@@ -4,23 +4,9 @@ See [DFTpy's website](http://dftpy.rutgers.edu) for details.
 
 See also [DFTpy's forum](https://lists.rutgers.edu/mm3/archives/list/dftpy_forum@email.rutgers.edu/) for commonly asked questions.
 
-## [uv](https://docs.astral.sh/uv/)
+## For Developers
 
-It is recommended to manage this project with **uv**. Use **uv** to set up this project is simple:
-1. Install uv: <https://docs.astral.sh/uv/getting-started/installation/>
-2. Change directory to DFTpy project root.
-3. Run the commands:
-   ```shell
-   uv venv --python 3.11
-   source .venv/bin/activate
-   uv sync --active --all-extras --all-groups
-   ```
-   In the first command above, if you choose Python 3.9 ~ 3.11, you can install all the optional dependencies, and
-   `uv sync --active --all-extras --all-groups` should work. If you choose to use Python 3.12+, currently you can't
-   install some optional dependencies, which is listed under `[project.optional-dependencies]`, and you need to drop the
-   `--all-extras` flag.
-
-### **Recommended Project Setup with `uv`**
+### Manage Project with [`uv`](https://docs.astral.sh/uv/) (the recommended way)
 
 Managing this project with **`uv`** is straightforward:
 
@@ -36,3 +22,21 @@ Managing this project with **`uv`** is straightforward:
    - For Python 3.9–3.11, all optional dependencies can be installed, so `--all-extras` will work.
    - For Python 3.12+, some optional dependencies (listed under [project.optional-dependencies]) are currently
      unavailable. In this case, omit the `--all-extras` flag.
+
+### How to Add and Run Tests
+
+We have a *tests* module where developers can place their test files. It is in the top level of this project. We have
+already included some example test cases in it.
+
+The **tests** module consists of two submodules:
+- **unit** for unit tests.
+- **integration** for integration tests.
+
+There are no specific layout requirements for integration tests. However, for unit tests, we follow a structured
+convention: if there is a source file in *src/dftpy/xxx.py*, its corresponding test cases should be in
+*tests/unit/test_xxx.py*.
+
+We use **pytest** as our test framework. Its configuration is defined in the [tool.pytest.ini_options] section of
+*pyproject.toml*. **pytest** follows specific rules for identifying tests in a project (details can be found in its
+documentation). One such rule is that any function whose name starts or ends with `test` will be automatically
+recognized as a test by **pytest**.
