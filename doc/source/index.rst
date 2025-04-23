@@ -26,6 +26,7 @@ In these docs:
    tutorials/tutorials
    releases
    ofdft
+   Pseudopotentials
    faq
 
 
