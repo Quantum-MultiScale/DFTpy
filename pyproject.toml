@@ -11,53 +11,62 @@ maintainers = [
 	{name = "Pavanello Research Group",		email = "m.pavanello@rutgers.edu"},
 	{name = "Xuecheng Shao",				email = "shaoxc@jlu.edu.cn"},
 ]
-requires-python = ">=3.6"
-dependencies = [
-	'numpy>=1.11.0',
-	'scipy>=0.18.0',
-	'ase>=3.22.0',
-	'xmltodict>=0.12.0'
-]
+requires-python = ">=3.9"
 readme = "README.md"
 classifiers = [
 	'Development Status :: 3 - Alpha',
 	'Intended Audience :: Science/Research',
 	'Programming Language :: Python :: 3',
-	'Programming Language :: Python :: 3.6',
-	'Programming Language :: Python :: 3.7',
-	'Programming Language :: Python :: 3.8',
 	'Programming Language :: Python :: 3.9',
 	'Programming Language :: Python :: 3.10',
 	'Programming Language :: Python :: 3.11',
-	'Programming Language :: Python :: 3.12',
+	'Programming Language :: Python :: 3.12', # some optional dependencies are not available for this version
 	'Topic :: Scientific/Engineering :: Chemistry',
     'Topic :: Scientific/Engineering :: Physics',
     "Operating System :: POSIX",
     "Operating System :: Unix",
     "Operating System :: MacOS",
 ]
+dependencies = [
+	"numpy>=1.11.0",
+	"scipy>=0.18.0",
+	"ase>=3.22.0",
+	"xmltodict>=0.12.0",
+]
 
 [project.scripts]
 dftpy = 'dftpy.cui.main:main'
 
 [project.optional-dependencies]
+extra = [
+	"dftd4>=3.7.0",
+	"ipyvolume>=0.6.3",
+	"numexpr>=2.10.2",
+	"pyfftw>=0.14.0",
+	"pymatgen>=2024.8.9",
+	"scikit-image>=0.24.0",
+	"upf-to-json>=0.9.5",
+]
+# TODO: recover this when CI/CD config for MPI is done.
+#mpi = [
+#	"mpi4py",
+#	"mpi4py-fft",
+#]
+
+[dependency-groups]
 docs = [
-	"sphinx",
-	"sphinx-rtd-theme",
-	"sphinx-panels",
-	"sphinx-copybutton",
-	"sphinx-inline-tabs",
-	"nbsphinx",
-	"pandoc"
+    "nbsphinx>=0.9.7",
+    "pandoc>=2.4",
+    "sphinx>=7.4.7",
+    "sphinx-copybutton>=0.5.2",
+    "sphinx-inline-tabs>=2023.4.21",
+    "sphinx-panels>=0.4.1",
+    "sphinx-rtd-theme>=3.0.2",
 ]
 test = [
-	"pytest",
-	"pytest-cov",
-	"pytest-mpi",
-]
-mpi = [
-	"mpi4py",
-	"mpi4py-fft",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.1.1",
+#    "pytest-mpi>=0.6", # TODO: recover this line when CI/CD config for MPI is done.
 ]
 
 [project.urls]
@@ -70,3 +79,12 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = [
+	"--verbose",
+	"--strict-markers",
+	"--strict-config",
+	"-ra"
+]
+testpaths = "tests"
