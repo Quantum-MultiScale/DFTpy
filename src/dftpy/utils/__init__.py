@@ -1,6 +1,7 @@
 import functools
 import sys
 from contextlib import ExitStack
+
 from dftpy.utils.utils import *
 
 
@@ -58,6 +59,7 @@ class IOContext(object):
 
     def openfile(self, file, comm=None, mode='w'):
         from dftpy.mpi import mp
+
         if comm is None:
             comm = mp.comm
 

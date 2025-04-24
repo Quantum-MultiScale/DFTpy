@@ -64,9 +64,14 @@ docs = [
     "sphinx-rtd-theme>=3.0.2",
 ]
 test = [
+    "black==24.2.0",
+    "isort==5.13.2",
+    "mypy==1.8.0",
+    "pre-commit>=4.2.0",
     "pytest>=8.3.5",
     "pytest-cov>=6.1.1",
-#    "pytest-mpi>=0.6", # TODO: recover this line when CI/CD config for MPI is done.
+    #    "pytest-mpi>=0.6", # TODO: recover this line when CI/CD config for MPI is done.
+    "velin==0.0.11",
 ]
 
 [project.urls]
@@ -88,3 +93,20 @@ addopts = [
 	"-ra"
 ]
 testpaths = "tests"
+
+[tool.mypy]
+follow_imports = "silent"
+show_column_numbers = true
+ignore_missing_imports = true
+exclude = ['tests/run_test/',]
+
+[tool.coverage.run]
+source = ["src/python/calypso"]
+omit = [
+    "src/python/calypso/_version.py",
+]
+
+[tool.black]
+skip-string-normalization = true
+# max-line-length = "88"
+line-length = 88

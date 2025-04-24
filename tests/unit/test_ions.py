@@ -1,8 +1,10 @@
-import pytest
 import numpy as np
+import pytest
 from ase import Atoms
-from dftpy.ions import Ions
+
 from dftpy.constants import Units
+from dftpy.ions import Ions
+
 
 def test_ions_initialization():
     symbols = ["H", "He"]
@@ -52,7 +54,7 @@ def test_ions_from_ase():
     assert ions.nat == 2
     assert ions.symbols_uniq.tolist() == ["H", "He"]
     assert np.allclose(ions.get_positions(), np.array(positions) / Units.Bohr)
-    assert np.allclose(ions.cell.array, cell/ Units.Bohr)
+    assert np.allclose(ions.cell.array, cell / Units.Bohr)
 
 
 def test_ions_get_ncharges():
@@ -75,6 +77,7 @@ def test_ions_zval_property():
     zval = ions.zval
     assert zval["H"] == 1.0
     assert zval["He"] == 2.0
+
 
 def test_ions_input_from_atoms():
     symbols = ["H", "He"]
@@ -100,13 +103,14 @@ def test_ions_invalid_methods_and_attributes():
     with pytest.raises(AttributeError):
         _ = ions.unsupported_attribute
 
+
 def test_ions_repeat():
     symbols = ["H", "He"]
     positions = [[0, 0, 0], [1, 1, 1]]
     cell = np.eye(3) * 10
     ions = Ions(symbols=symbols, positions=positions, cell=cell)
 
-    repeated_ions = ions.repeat((2,1,1))
+    repeated_ions = ions.repeat((2, 1, 1))
     positions_repeated = [[0, 0, 0], [1, 1, 1], [10, 0, 0], [11, 1, 1]]
     assert repeated_ions.nat == 4
     assert np.allclose(repeated_ions.get_positions(), positions_repeated)

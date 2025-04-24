@@ -1,6 +1,7 @@
 import numpy as np
-from dftpy.grid import DirectGrid
+
 from dftpy.field import DirectField
+from dftpy.grid import DirectGrid
 from dftpy.ions import Ions
 
 
@@ -9,10 +10,10 @@ class PP(object):
         self.filepp = filepp
         self.title = "DFTpy"
         self.cutoffvars = {
-                'gcutm' : 1.0,
-                'dual' : 4.0,
-                'ecut' : 1.0,
-                }
+            'gcutm': 1.0,
+            'dual': 4.0,
+            'ecut': 1.0,
+        }
 
     def read(self, full=True, data_type='density', kind='all', **kwargs):
 
@@ -23,7 +24,9 @@ class PP(object):
             # nr1x, nr2x, nr3x, nr1, nr2, nr3, nat, ntyp
             nrx = np.empty(3, dtype=int)
             nr = np.empty(3, dtype=int)
-            nrx[0], nrx[1], nrx[2], nr[0], nr[1], nr[2], nat, ntyp = (int(x) for x in filepp.readline().split())
+            nrx[0], nrx[1], nrx[2], nr[0], nr[1], nr[2], nat, ntyp = (
+                int(x) for x in filepp.readline().split()
+            )
 
             # ibrav, celldm
             celldm = np.zeros(6, dtype=float)
@@ -78,15 +81,18 @@ class PP(object):
                 label.append(atm[ity])
                 pos.append(tau)
             pos = np.asarray(pos)
-            if ibrav == 0 :
+            if ibrav == 0:
                 pos *= celldm[0]
-                ions = Ions(symbols = label, positions = pos, cell = grid.cell, units = 'au')
-            else :
-                ions = Ions(symbols = label, scaled_positions = pos, cell = grid.cell, units = 'au')
+                ions = Ions(symbols=label, positions=pos, cell=grid.cell, units='au')
+            else:
+                ions = Ions(
+                    symbols=label, scaled_positions=pos, cell=grid.cell, units='au'
+                )
 
             ions.set_charges(zval)
 
-            if kind == 'ions' : return ions
+            if kind == 'ions':
+                return ions
 
             # plot
             blocksize = 1024 * 8
@@ -109,10 +115,11 @@ class PP(object):
 
             plot = DirectField(grid=grid, griddata_F=ppgrid, rank=1)
 
-            if data_type == 'potential' :
-                plot *= 0.5 # Ry to Hartree
+            if data_type == 'potential':
+                plot *= 0.5  # Ry to Hartree
 
-            if kind == 'data' : return plot
+            if kind == 'data':
+                return plot
 
             return ions, plot, self.cutoffvars
 
@@ -131,13 +138,17 @@ class PP(object):
             at[:, 2] = 0.5 * celldm[0] * np.array([-1.0, 1.0, 0.0])
         else:
             # implement all the other Bravais lattices
-            raise NotImplementedError("celldm2at is only implemented for ibrav = 0 and ibrav = 1")
+            raise NotImplementedError(
+                "celldm2at is only implemented for ibrav = 0 and ibrav = 1"
+            )
 
         return at
 
-    def write(self, ions, data, data_type = 'density', header = None, information = None, **kwargs):
+    def write(
+        self, ions, data, data_type='density', header=None, information=None, **kwargs
+    ):
         info = self.cutoffvars.copy()
-        if information :
+        if information:
             info.update(information)
         fmt = "%22.15e"
         with open(self.filepp, "w") as filepp:
@@ -156,21 +167,21 @@ class PP(object):
             # ibrav, celldm
             ibrav = info.get("ibrav", 0)
             celldm = info.get("celldm", None)
-            if celldm is None :
+            if celldm is None:
                 celldm = np.zeros(6)
                 celldm[0] = ions.cell.lengths()[0]
             mywrite(filepp, ibrav, True)
             mywrite(filepp, celldm, False)
             if ibrav == 0:
                 for ilat in range(3):
-                    mywrite(filepp, ions.cell[ilat]/celldm[0], True)
+                    mywrite(filepp, ions.cell[ilat] / celldm[0], True)
             # gcutm, dual, ecut, plot_num
             mywrite(filepp, info["gcutm"], True)
             mywrite(filepp, info["dual"], False)
             mywrite(filepp, info["ecut"], False)
-            if data_type == 'potential' :
+            if data_type == 'potential':
                 plot_num = 1
-            else :
+            else:
                 plot_num = 0
             mywrite(filepp, info.get('plot_num', plot_num), False)
 
@@ -183,17 +194,23 @@ class PP(object):
             for iat in range(ions.nat):
                 mywrite(filepp, iat + 1, True)
                 mywrite(filepp, tau[iat], False)
-                mywrite(filepp, np.where(ions.symbols_uniq == ions.symbols[iat])[0][0] + 1, False)
+                mywrite(
+                    filepp,
+                    np.where(ions.symbols_uniq == ions.symbols[iat])[0][0] + 1,
+                    False,
+                )
 
             # plot
             filepp.write('\n')
             nlines = data.grid.nnr // val_per_line
             grid_pp = data.get_values_flatarray(order="F")
-            if data_type == 'potential' :
-                grid_pp = grid_pp*2.0 # Hartree to Ry
+            if data_type == 'potential':
+                grid_pp = grid_pp * 2.0  # Hartree to Ry
             for iline in range(nlines):
                 igrid = iline * val_per_line
-                grid_pp[igrid : igrid + val_per_line].tofile(filepp, sep=" ", format=fmt)
+                grid_pp[igrid : igrid + val_per_line].tofile(
+                    filepp, sep=" ", format=fmt
+                )
                 filepp.write('\n')
             igrid = (iline + 1) * val_per_line
             grid_pp[igrid : grid.nnr].tofile(filepp, sep=" ", format=fmt)
@@ -213,6 +230,7 @@ def mywrite(fileobj, iterable, newline):
 def read_qepp(infile, **kwargs):
     return PP(infile).read(**kwargs)
 
-def write_qepp(infile, ions = None, data = None, **kwargs):
-    PP(infile).write(ions = ions, data = data, **kwargs)
+
+def write_qepp(infile, ions=None, data=None, **kwargs):
+    PP(infile).write(ions=ions, data=data, **kwargs)
     return

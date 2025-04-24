@@ -1,7 +1,8 @@
 # Hartree functional
 
-import numpy as np
 import copy
+
+import numpy as np
 
 from dftpy.functional.abstract_functional import AbstractFunctional
 from dftpy.functional.functional_output import FunctionalOutput
@@ -35,13 +36,18 @@ class Hartree(AbstractFunctional):
         v_h = rho_of_g * invgg * 4 * np.pi
         v_h_of_r = v_h.ifft(force_real=force_real)
         if 'E' in calcType:
-            e_h = np.einsum("ijk, ijk->", v_h_of_r, rho,optimize=True) * density.grid.dV / 2.0
+            e_h = (
+                np.einsum("ijk, ijk->", v_h_of_r, rho, optimize=True)
+                * density.grid.dV
+                / 2.0
+            )
         else:
             e_h = 0
         if density.rank > 1:
             v_h_of_r = v_h_of_r.tile((density.rank, 1, 1, 1))
-        functional=FunctionalOutput(name="Hartree", potential=v_h_of_r, energy=e_h)
-        if 'E' in calcType : cls._energy = functional.energy
+        functional = FunctionalOutput(name="Hartree", potential=v_h_of_r, energy=e_h)
+        if 'E' in calcType:
+            cls._energy = functional.energy
         return functional
 
     @property
@@ -52,11 +58,11 @@ class Hartree(AbstractFunctional):
         options = copy.deepcopy(self.options)
         options.update(kwargs)
         energy = self.energy
-        stress=HartreeFunctionalStress(density, energy=energy)
+        stress = HartreeFunctionalStress(density, energy=energy)
         return stress
 
 
-#def HartreePotentialReciprocalSpace(density):
+# def HartreePotentialReciprocalSpace(density):
 #    invgg = density.grid.get_reciprocal().invgg
 #    rho_of_g = density.fft()
 #    v_h = rho_of_g.copy()
@@ -85,7 +91,7 @@ def HartreeFunctionalStress(density, energy=None):
         for j in range(i, 3):
             den = (g[i][mask] * g[j][mask]) * rhoG2[mask]
             Etmp = np.sum(den)
-            stress[i, j] = stress[j, i] = Etmp.real * 8.0 * np.pi / rho.grid.volume ** 2
+            stress[i, j] = stress[j, i] = Etmp.real * 8.0 * np.pi / rho.grid.volume**2
             if i == j:
                 stress[i, j] -= energy / rho.grid.volume
     return stress

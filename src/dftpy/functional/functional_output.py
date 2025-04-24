@@ -26,8 +26,18 @@ class FunctionalOutput(object):
         be populated only if the functional is nonlocal
     """
 
-    def __init__(self, name=None, energy=None, potential=None, energydensity=None, v2rho2=None, v3rho3=None,
-                 v4rho4=None, force=None, stress=None):
+    def __init__(
+        self,
+        name=None,
+        energy=None,
+        potential=None,
+        energydensity=None,
+        v2rho2=None,
+        v3rho3=None,
+        v4rho4=None,
+        force=None,
+        stress=None,
+    ):
 
         args = locals()
 
@@ -52,8 +62,9 @@ class FunctionalOutput(object):
             if hasattr(self, key):
                 yield key, getattr(self, key)
 
-    def sum(self, other = None):
-        if other is None : return self.copy()
+    def sum(self, other=None):
+        if other is None:
+            return self.copy()
         if self.name == other.name:
             name = self.name
         else:
@@ -122,7 +133,7 @@ class ZeroFunctional(object):
         return self.compute(rho, *args, **kwargs)
 
     @staticmethod
-    def compute(rho, *args, calcType = {'E', 'V'}, **kwargs):
+    def compute(rho, *args, calcType={'E', 'V'}, **kwargs):
         out = FunctionalOutput(name="ZERO", energy=0.0)
         if 'D' in calcType:
             out.energydensity = DirectField(grid=rho.grid)

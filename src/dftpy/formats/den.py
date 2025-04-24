@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def read_data_den(infile, order="F", **kwargs):
     with open(infile, "r") as fr:
         line = fr.readline()
@@ -15,12 +16,13 @@ def read_data_den(infile, order="F", **kwargs):
     density = density.reshape(nr0, order=order)
     return density
 
-def write_data_den(outfile, density, order = "F", **kwargs):
+
+def write_data_den(outfile, density, order="F", **kwargs):
     with open(outfile, "w") as fw:
         nr = density.shape
-        if len(nr) == 3 :
+        if len(nr) == 3:
             fw.write("{0[0]:10d} {0[1]:10d} {0[2]:10d}\n".format(nr))
-        elif len(nr) == 4 :
+        elif len(nr) == 4:
             fw.write("{0[0]:10d} {0[1]:10d} {0[2]:10d} {0[3]:10d}\n".format(nr))
         size = np.size(density)
         nl = size // 3
@@ -30,9 +32,11 @@ def write_data_den(outfile, density, order = "F", **kwargs):
         for line in outrho[nl * 3 :]:
             fw.write("{0:22.15E}".format(line))
 
+
 def read_den(infile, **kwargs):
     data = read_data_den(infile, **kwargs)
     return data
 
-def write_den(outfile, ions = None, data = None, **kwargs):
+
+def write_den(outfile, ions=None, data=None, **kwargs):
     return write_data_den(outfile, data, **kwargs)

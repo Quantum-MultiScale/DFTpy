@@ -12,6 +12,7 @@ class Propagator(object):
     is the same as
     CrankNicholson(hamiltonian=hamiltonian, interval=0.1)
     """
+
     NameDict = {
         'taylor': Taylor,
         'crank-nicholson': CrankNicholson,
@@ -19,18 +20,19 @@ class Propagator(object):
 
     def __new__(cls, *args, name: Union[str, None] = None, **kwargs):
         """
-
         Parameters
         ----------
         args:
             Arguments passed to the propagator
-        name: str
+        name : str
             Name of the propagator, options:
             'taylor', 'crank-nicholson'
-        kwargs: dict
+        **kwargs : dict
             Keyword arguments passed to the propagator
         """
         try:
             return cls.NameDict[name](*args, **kwargs)
         except KeyError:
-            raise AttributeError("{0:s} is not a supported propagator type".format(name))
+            raise AttributeError(
+                "{0:s} is not a supported propagator type".format(name)
+            )

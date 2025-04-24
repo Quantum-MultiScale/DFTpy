@@ -1,1 +1,1 @@
-from .config import DefaultOption, OptionFormat, ReadConf, PrintConf
+from .config import DefaultOption, OptionFormat, PrintConf, ReadConf

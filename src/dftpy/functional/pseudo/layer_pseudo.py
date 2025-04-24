@@ -1,15 +1,18 @@
-from dftpy.functional.external_potential import ExternalPotential
-from dftpy.ions import Ions
-from dftpy.grid import DirectGrid
-from dftpy.field import DirectField
 import numpy as np
+from scipy.interpolate import splev, splrep
+
 from dftpy.density.density import AtomicDensity
-from scipy.interpolate import splrep, splev
+from dftpy.field import DirectField
+from dftpy.functional.external_potential import ExternalPotential
+from dftpy.grid import DirectGrid
+from dftpy.ions import Ions
 
 
 class LayerPseudo(ExternalPotential):
 
-    def __init__(self, vr=None, r=None, grid: DirectGrid = None, ions: Ions = None, **kwargs):
+    def __init__(
+        self, vr=None, r=None, grid: DirectGrid = None, ions: Ions = None, **kwargs
+    ):
         super().__init__()
         self.grid = grid
         self.ions = ions
@@ -44,7 +47,11 @@ class LayerPseudo(ExternalPotential):
             dv0 = splev(dis['dists'], spl)
             dv1 = np.zeros_like(dv0)
             dv1[dis['index']] = dv0[dis['index']]
-            self._v[dis['l123A'][0][dis['mask']], dis['l123A'][1][dis['mask']], dis['l123A'][2][dis['mask']]] += dv1.ravel()[dis['mask']]
+            self._v[
+                dis['l123A'][0][dis['mask']],
+                dis['l123A'][1][dis['mask']],
+                dis['l123A'][2][dis['mask']],
+            ] += dv1.ravel()[dis['mask']]
 
     # def __init__(self, **kwargs):
     #     self._gp = {}  # 1D PP grid g-space

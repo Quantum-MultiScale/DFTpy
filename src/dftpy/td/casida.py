@@ -15,7 +15,9 @@ class Casida(object):
             self.rho0 = rho0
             self.polarized = True
         elif rho0.rank == 1:
-            self.rho0 = DirectField(rho0.grid, rank=2, griddata_3d=np.stack([rho0 / 2, rho0 / 2], axis=0))
+            self.rho0 = DirectField(
+                rho0.grid, rank=2, griddata_3d=np.stack([rho0 / 2, rho0 / 2], axis=0)
+            )
             self.polarized = False
         else:
             raise AttributeError("rho0 must be an rank-1 or -2 DFTpy DirectField.")
@@ -26,14 +28,18 @@ class Casida(object):
 
     def calc_k(self, psi_i, psi_j, vh):
         if not self.polarized:
-            fkxc = DirectField(self.grid, rank=1, griddata_3d=(self.fkxc[0] + self.fkxc[1]) / 2.0)
+            fkxc = DirectField(
+                self.grid, rank=1, griddata_3d=(self.fkxc[0] + self.fkxc[1]) / 2.0
+            )
             return (psi_i * (vh + fkxc * psi_j)).integral()
         else:
             raise Exception('Spin polarized Casida is not implemented')
 
     def calc_k_tri(self, psi_i, psi_j):
         if not self.polarized:
-            fkxc = DirectField(self.grid, rank=1, griddata_3d=(self.fkxc[0] - self.fkxc[1]) / 2.0)
+            fkxc = DirectField(
+                self.grid, rank=1, griddata_3d=(self.fkxc[0] - self.fkxc[1]) / 2.0
+            )
             return (psi_i * fkxc * psi_j).integral()
         else:
             raise Exception('Spin polarized Casida is not implemented')
@@ -62,13 +68,17 @@ class Casida(object):
             for i in range(j, num_psi):
                 psi_i = psi_list[0] * psi_list[i]
                 k = self.calc_k(psi_i, psi_j, vh)
-                self.c[i - 1, j - 1] = k * self.N * 2.0 * np.sqrt(omega[i - 1] * omega[j - 1])
+                self.c[i - 1, j - 1] = (
+                    k * self.N * 2.0 * np.sqrt(omega[i - 1] * omega[j - 1])
+                )
                 if build_ab:
                     self.a[i - 1, j - 1] = k * self.N
                     self.b[i - 1, j - 1] = k * self.N
                 if calc_triplet:
                     k_tri = self.calc_k_tri(psi_i, psi_j)
-                    self.c_tri[i - 1, j - 1] = k_tri * self.N * 2.0 * np.sqrt(omega[i - 1] * omega[j - 1])
+                    self.c_tri[i - 1, j - 1] = (
+                        k_tri * self.N * 2.0 * np.sqrt(omega[i - 1] * omega[j - 1])
+                    )
                     if build_ab:
                         self.a_tri[i - 1, j - 1] = k_tri * self.N
                         self.b_tri[i - 1, j - 1] = k_tri * self.N
@@ -108,7 +118,9 @@ class Casida(object):
         if not hasattr(self, 'c'):
             raise Exception("Matrix is not built yet. Run build_matrix first.")
         if calc_triplet and not hasattr(self, 'c_tri'):
-            raise Exception("Matrix for triplet is not built yet. Run build_matrix with calc_triplet=True first.")
+            raise Exception(
+                "Matrix for triplet is not built yet. Run build_matrix with calc_triplet=True first."
+            )
         num_modes = np.shape(self.c)[0]
 
         omega2, z_list = eigh(self.c)
@@ -157,7 +169,9 @@ class Casida(object):
         if not hasattr(self, 'a'):
             raise Exception("Matrix is not built yet. Run build_matrix first.")
         if calc_triplet and not hasattr(self, 'a_tri'):
-            raise Exception("Matrix for triplet is not built yet. Run build_matrix with calc_triplet=True first.")
+            raise Exception(
+                "Matrix for triplet is not built yet. Run build_matrix with calc_triplet=True first."
+            )
         num_modes = np.shape(self.a)[0]
 
         omega, x_list = eigh(self.a)

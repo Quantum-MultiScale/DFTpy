@@ -31,7 +31,7 @@ def vonWeizsackerPotential(rho, sigma=None, phi=None, lphi=False, **kwargs):
     The von Weizsacker Potential
     """
     # -----------------------------------------------------------------------
-    tol = 1E-30
+    tol = 1e-30
     rhom = rho.copy()
     mask = rho > 0
     mask2 = np.invert(mask)
@@ -106,7 +106,12 @@ def vonWeizsackerStress(rho, y=1.0, energy=None, **kwargs):
         dRho_ij.append((1j * g[i] * rhoG).ifft(force_real=True))
     for i in range(3):
         for j in range(i, 3):
-            Etmp = -0.25 / rho.grid.volume * rho.grid.dV * np.einsum("ijk -> ", dRho_ij[i] * dRho_ij[j] / rho)
+            Etmp = (
+                -0.25
+                / rho.grid.volume
+                * rho.grid.dV
+                * np.einsum("ijk -> ", dRho_ij[i] * dRho_ij[j] / rho)
+            )
             stress[i, j] = stress[j, i] = Etmp.real * y
     return stress
 
@@ -131,7 +136,9 @@ def vW(rho, y=1.0, sigma=None, calcType={"E", "V"}, split=False, **kwargs):
         return OutFunctional
 
 
-def x_TF_y_vW(rho, x=1.0, y=1.0, sigma=None, calcType={"E", "V"}, split=False, **kwargs):
+def x_TF_y_vW(
+    rho, x=1.0, y=1.0, sigma=None, calcType={"E", "V"}, split=False, **kwargs
+):
     xTF = TF(rho, x=x, calcType=calcType)
     yvW = vW(rho, y=y, sigma=sigma, calcType=calcType, **kwargs)
     OutFunctional = FunctionalOutput(name=str(x) + "_TF_" + str(y) + "_vW")

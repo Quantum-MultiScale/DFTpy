@@ -4,7 +4,7 @@ from dftpy.constants import SPEED_OF_LIGHT
 from dftpy.linear_solver import _get_atol
 from dftpy.mpi import sprint
 from dftpy.optimize import Dynamics
-from dftpy.utils.utils import calc_rho, calc_j
+from dftpy.utils.utils import calc_j, calc_rho
 
 
 class PredictorCorrector(Dynamics):
@@ -12,43 +12,43 @@ class PredictorCorrector(Dynamics):
     The predictor-Corrector for real-time propagation.
     """
 
-    def __init__(self,
-                 psi,
-                 propagator=None,
-                 tol=1.0e-8,
-                 atol=None,
-                 max_steps=2,
-                 propagate_vector_potential=False,
-                 functionals=None,
-                 Omega=None,
-                 A_t=None,
-                 A_tm1=None,
-                 N0=None):
+    def __init__(
+        self,
+        psi,
+        propagator=None,
+        tol=1.0e-8,
+        atol=None,
+        max_steps=2,
+        propagate_vector_potential=False,
+        functionals=None,
+        Omega=None,
+        A_t=None,
+        A_tm1=None,
+        N0=None,
+    ):
         """
-
         Parameters
         ----------
-        psi: DirectField
-
-        propagator: AbstractPropagator
-        tol: float
+        psi : DirectField
+        propagator : AbstractPropagator
+        tol : float
             relative tolerance for convergence
-        atol: float
+        atol : float
             absolute tolerance for convergence
-        max_steps: int
+        max_steps : int
             Max amount of predictor-corrector steps
-        propagate_vector_potential: bool
+        propagate_vector_potential : bool
             Whether the vector potential will be propagated or be constant over time. Irrelevant if vector potential is
             not used.
-        functionals: AbstractFunctional
+        functionals : AbstractFunctional
             Total functionals
-        Omega: float
+        Omega : float
             Volume of the cavity. Irrelevant if vector potential is not used.
-        A_t: np.ndarray
+        A_t : np.ndarray
             Vector potential at the start of the current time step. Irrelevant if vector potential is not used.
-        A_tm1: np.ndarray
+        A_tm1 : np.ndarray
             Vector potential at the start of the previous time step. Irrelevant if vector potential is not used.
-        N0: float
+        N0 : float
             Number of electrons in the system.
 
         """
@@ -100,9 +100,18 @@ class PredictorCorrector(Dynamics):
         if self.propagate_vector_potential:
             self.A_t_pred = np.empty_like(self.A_t)
             self.A_t_pred[:] = np.real(
-                2 * self.A_t - self.A_tm1 - 4 * np.pi * self.N0 * self.A_t / self.Omega * self.int_t * self.int_t
-                - 4.0 * np.pi * SPEED_OF_LIGHT * self.N0 / self.Omega * self.psi_pred.para_current(
-                    sigma=0.025) * self.int_t * self.int_t)
+                2 * self.A_t
+                - self.A_tm1
+                - 4 * np.pi * self.N0 * self.A_t / self.Omega * self.int_t * self.int_t
+                - 4.0
+                * np.pi
+                * SPEED_OF_LIGHT
+                * self.N0
+                / self.Omega
+                * self.psi_pred.para_current(sigma=0.025)
+                * self.int_t
+                * self.int_t
+            )
 
         self.rho_corr = (self.rho + self.rho_pred) * 0.5
         self.j_corr = (self.j + self.j_pred) * 0.5
@@ -143,6 +152,12 @@ class PredictorCorrector(Dynamics):
         if self.max_steps > 1:
             sprint('Convergence not reached for Predictor-corrector')
             if self.diff_rho >= self.atol_rho:
-                sprint('Diff in rho: {0:10.2e} > {1:10.2e}'.format(self.diff_rho, self.atol_rho))
+                sprint(
+                    'Diff in rho: {0:10.2e} > {1:10.2e}'.format(
+                        self.diff_rho, self.atol_rho
+                    )
+                )
             if self.diff_j >= self.atol_j:
-                sprint('Diff in j: {0:10.2e} > {1:10.2e}'.format(self.diff_j, self.atol_j))
+                sprint(
+                    'Diff in j: {0:10.2e} > {1:10.2e}'.format(self.diff_j, self.atol_j)
+                )

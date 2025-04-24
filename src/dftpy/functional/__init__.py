@@ -1,12 +1,12 @@
-from dftpy.functional.functional_output import FunctionalOutput
-from dftpy.functional.total_functional import TotalFunctional
 from dftpy.functional.abstract_functional import AbstractFunctional
 from dftpy.functional.external_potential import ExternalPotential
+from dftpy.functional.functional_output import FunctionalOutput
 from dftpy.functional.hartree import Hartree
 from dftpy.functional.kedf import KEDF
 from dftpy.functional.nonadiabatic import Dynamic
 from dftpy.functional.pseudo import LocalPseudo
 from dftpy.functional.semilocal_xc import XC
+from dftpy.functional.total_functional import TotalFunctional
 
 FunctionalTypeDict = {
     'KEDF': KEDF,
@@ -26,16 +26,13 @@ def Functional(type=None, optional_kwargs=None, **kwargs):
     ----------
     name: string
         The name of the functional
-
     type: string
         The functional type (XC, KEDF, HARTREE, PSEUDO)
-
     optional_kwargs: dict
         set of kwargs for the different functional types/names
 
-
-    Example
-    -------
+    Examples
+    --------
      XC = Functional(type='XC',name='LDA')
      outXC = XC(rho)
      outXC.energy --> the energy

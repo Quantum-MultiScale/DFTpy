@@ -1,4 +1,4 @@
-from typing import Union, Tuple
+from typing import Tuple, Union
 
 import numpy as np
 import scipy.sparse.linalg as linalg
@@ -20,12 +20,11 @@ class CrankNicholsonOperator(Operator):
 
     def __init__(self, hamiltonian: Hamiltonian, interval: float) -> None:
         """
-
         Parameters
         ----------
-        hamiltonian: Hamiltonian
+        hamiltonian : Hamiltonian
             the time-dependent Hamiltonian
-        interval: float
+        interval : float
             the time interval for one time step
         """
         super(CrankNicholsonOperator, self).__init__(hamiltonian.grid)
@@ -43,13 +42,10 @@ class CrankNicholsonOperator(Operator):
 
     def __call__(self, psi: BaseField) -> BaseField:
         """
-
         Parameters
         ----------
-        psi: DirectField or ReciprocalField
+        psi : DirectField or ReciprocalField
             The wavefunction the operator acts on
-        Returns
-        -------
         DirectField or ReciprocalField, same as psi
             The resulting wavefunction
         """
@@ -58,10 +54,11 @@ class CrankNicholsonOperator(Operator):
 
 class CrankNicholson(AbstractPropagator):
     """
-    Crank-Nicholson propagator for real-time propagation
-    Eq. (4.23) of C. A. Ullrich, Time-dependent density-functional theory: concepts and applications (OUP Oxford,
-2011)
+        Crank-Nicholson propagator for real-time propagation
+        Eq. (4.23) of C. A. Ullrich, Time-dependent density-functional theory: concepts and applications (OUP Oxford,
+    2011)
     """
+
     LinearSolverDict = {
         "bicg_scipy": {"func": linalg.bicg, "scipy": True},
         "bicgstab_scipy": {"func": linalg.bicgstab, "scipy": True},
@@ -76,26 +73,33 @@ class CrankNicholson(AbstractPropagator):
         "cg": {"func": dftpy.linear_solver.cg, "scipy": False},
     }
 
-    def __init__(self, hamiltonian: Hamiltonian, interval: float, linearsolver: str = "cg", tol: float = 1e-8,
-                 maxiter: int = 100, atol: Union[float, None] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        hamiltonian: Hamiltonian,
+        interval: float,
+        linearsolver: str = "cg",
+        tol: float = 1e-8,
+        maxiter: int = 100,
+        atol: Union[float, None] = None,
+        **kwargs,
+    ) -> None:
         """
-
         Parameters
         ----------
-        hamiltonian: Hamiltionian
+        hamiltonian : Hamiltionian
             the time-dependent Hamiltonian
-        interval: float
+        interval : float
             the time interval for one time step
-        linearsolver: str
+        linearsolver : str
             the name of the linear solver to solve the Ax=b problem. Options:
             "bicg_scipy", "bicgstab_scipy", "cg_scipy", "cgs_scipy", "gmres_scipy", "lgmres_scipy", "minres_scipy",
             "qmr_scipy", "bicg", "bicgstab", "cg"
             Note: Scipy solvers only works for the serial version
-        tol: float
+        tol : float
             the tolerance of the linear solver
-        maxiter: int
+        maxiter : int
             the max number of iterations of the linear solver
-        atol: float
+        atol : float
             the absolute tolerance of the linear solver
 
         """
@@ -135,7 +139,7 @@ class CrankNicholson(AbstractPropagator):
 
         Parameters
         ----------
-        linear_solver: the name of the linear solver to solve the Ax=b problem
+        linear_solver : the name of the linear solver to solve the Ax=b problem
 
         """
         if linear_solver not in self.LinearSolverDict:
@@ -144,7 +148,9 @@ class CrankNicholson(AbstractPropagator):
         self._linear_solver = self.LinearSolverDict[linear_solver]['func']
         self._scipy = self.LinearSolverDict[linear_solver]['scipy']
 
-    def _calc_b(self, psi: Union[DirectField, ReciprocalField]) -> Union[DirectField, ReciprocalField]:
+    def _calc_b(
+        self, psi: Union[DirectField, ReciprocalField]
+    ) -> Union[DirectField, ReciprocalField]:
         return psi - 1j * self.hamiltonian(psi) * self.interval / 2.0
 
     @timer('Crank-Nicholson-Propagator')
@@ -154,7 +160,7 @@ class CrankNicholson(AbstractPropagator):
 
         Parameters
         ----------
-        psi0: DirectField or ReciprocalField
+        psi0 : DirectField or ReciprocalField
             the initial wavefunction.
 
         Returns
@@ -171,16 +177,30 @@ class CrankNicholson(AbstractPropagator):
             reciprocal = isinstance(psi0, ReciprocalField)
             size = self.hamiltonian.grid.nnr
             b = self._calc_b(psi0).ravel()
-            mat = LinearOperator(shape=(size, size), dtype=psi0.dtype,
-                                 matvec=self._a.scipy_matvec_utils(reciprocal=reciprocal))
-            psi1_, status = self._linear_solver(mat, b, x0=psi0.ravel(), tol=self.tol, maxiter=self.maxiter,
-                                                atol=self.atol)
-            psi1 = DirectField(grid=self.hamiltonian.grid, rank=1,
-                               griddata_3d=np.reshape(psi1_, self.hamiltonian.grid.nr), cplx=True)
+            mat = LinearOperator(
+                shape=(size, size),
+                dtype=psi0.dtype,
+                matvec=self._a.scipy_matvec_utils(reciprocal=reciprocal),
+            )
+            psi1_, status = self._linear_solver(
+                mat,
+                b,
+                x0=psi0.ravel(),
+                tol=self.tol,
+                maxiter=self.maxiter,
+                atol=self.atol,
+            )
+            psi1 = DirectField(
+                grid=self.hamiltonian.grid,
+                rank=1,
+                griddata_3d=np.reshape(psi1_, self.hamiltonian.grid.nr),
+                cplx=True,
+            )
         else:
             b = self._calc_b(psi0)
-            psi1, status = self._linear_solver(self._a, b, psi0, self.tol, self.maxiter,
-                                               atol=self.atol, mp=psi0.mp)
+            psi1, status = self._linear_solver(
+                self._a, b, psi0, self.tol, self.maxiter, atol=self.atol, mp=psi0.mp
+            )
 
         if status:
             sprint("Linear solver did not converge. Info: {0:d}".format(status))

@@ -1,5 +1,5 @@
-def view_on_vesta(ions = None, data = None, saveas=None, **kwargs):
-    """ View ions and data on VESTA. Must have VESTA installed.
+def view_on_vesta(ions=None, data=None, saveas=None, **kwargs):
+    """View ions and data on VESTA. Must have VESTA installed.
 
     Parameters
     ----------
@@ -10,15 +10,16 @@ def view_on_vesta(ions = None, data = None, saveas=None, **kwargs):
     saveas : string
         File name to save the data
     """
-    from dftpy.formats import io
-    import sys
     import os
+    import sys
+
+    from dftpy.formats import io
 
     if saveas is None:
-        if data is not None :
-            saveas ='./.dftpy.xsf'
-        else :
-            saveas ='./.dftpy.vasp'
+        if data is not None:
+            saveas = './.dftpy.xsf'
+        else:
+            saveas = './.dftpy.vasp'
 
     if saveas in os.listdir('./'):
         os.remove(saveas)
@@ -28,8 +29,8 @@ def view_on_vesta(ions = None, data = None, saveas=None, **kwargs):
     print(f'save {saveas} in {sys.platform} platform')
 
     if sys.platform == 'linux':
-        os.system('VESTA '+saveas)
+        os.system('VESTA ' + saveas)
     elif sys.platform == 'darwin':
-        os.system('open -a VESTA '+saveas)
+        os.system('open -a VESTA ' + saveas)
     else:
         raise Exception('Unknown OS')

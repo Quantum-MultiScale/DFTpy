@@ -1,4 +1,4 @@
-from typing import Union, Tuple
+from typing import Tuple, Union
 
 import numpy as np
 
@@ -15,16 +15,17 @@ class Taylor(AbstractPropagator):
     Taylor propagator for real-time propagation
     """
 
-    def __init__(self, hamiltonian: Operator, interval: float, order: int = 1, **kwargs) -> None:
+    def __init__(
+        self, hamiltonian: Operator, interval: float, order: int = 1, **kwargs
+    ) -> None:
         """
-
         Parameters
         ----------
-        hamiltonian: Hamiltonian
+        hamiltonian : Hamiltonian
             the time-dependent Hamiltonian
-        interval: float
+        interval : float
             the time interval for one time step
-        order: int
+        order : int
             the order of Taylor expansion
 
         """
@@ -38,7 +39,7 @@ class Taylor(AbstractPropagator):
 
         Parameters
         ----------
-        psi0: DirectField or ReciprocalField
+        psi0 : DirectField or ReciprocalField
             the initial wavefunction.
 
         Returns
@@ -57,7 +58,11 @@ class Taylor(AbstractPropagator):
         for i_order in range(self.order):
             new_psi = -1j * self.interval / (i_order + 1) * self.hamiltonian(new_psi)
             if np.isnan(new_psi).any():
-                sprint("Warning: taylor propagator exits on order {0:d} due to NaN in new psi.".format(i_order))
+                sprint(
+                    "Warning: taylor propagator exits on order {0:d} due to NaN in new psi.".format(
+                        i_order
+                    )
+                )
                 psi1 = psi1 + new_psi
                 return psi1, 1
             psi1 = psi1 + new_psi

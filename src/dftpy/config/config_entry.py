@@ -1,6 +1,6 @@
 import ast
-import re
 import os
+import re
 from collections import OrderedDict
 from json import JSONEncoder
 
@@ -36,6 +36,7 @@ def format_str(expression):
 def format_lstr(expression):
     return expression.lower()
 
+
 def format_ustr(expression):
     return expression.upper()
 
@@ -47,12 +48,16 @@ def format_cstr(expression):
 def format_path(expression):
     def func(m):
         return os.environ.get(m.group(1))
+
     return re.subn(r'\$\{(.*?)\}', func, expression)[0]
+
 
 def format_slice(expression):
     if ':' in expression:
         ls = expression.split(':')
-        l = [None, ] * 3
+        l = [
+            None,
+        ] * 3
         for i, item in enumerate(ls):
             if item.lstrip('-+').isdigit():
                 l[i] = int(item)
@@ -96,11 +101,7 @@ def format_lstrlist(expression):
 
 
 def format_direction(expression):
-    direct_dict = {
-        "x": 0,
-        "y": 1,
-        "z": 2
-    }
+    direct_dict = {"x": 0, "y": 1, "z": 2}
     if expression in direct_dict:
         return direct_dict[expression]
     else:
@@ -139,8 +140,19 @@ def format_oidict(expression):
 
 class ConfigEntry(object):
 
-    def __init__(self, type='str', default=None, comment='', options='', example=None, note=None, warning=None,
-                 unit = None, level = None, **kwargs):
+    def __init__(
+        self,
+        type='str',
+        default=None,
+        comment='',
+        options='',
+        example=None,
+        note=None,
+        warning=None,
+        unit=None,
+        level=None,
+        **kwargs,
+    ):
         self.type = type
         self.default = default
         self.comment = comment
@@ -180,9 +192,16 @@ class ConfigEntry(object):
         return format_dict[self.type](expression)
 
     def gen_doc(self, key):
-        output = [".. option:: {0:}".format(key), "", "    {0:}".format(self.comment),
-                  "        *Options* : {0:}".format(self.options), "", "        *Default* : {0:}".format(self.default),
-                  "", ""]
+        output = [
+            ".. option:: {0:}".format(key),
+            "",
+            "    {0:}".format(self.comment),
+            "        *Options* : {0:}".format(self.options),
+            "",
+            "        *Default* : {0:}".format(self.default),
+            "",
+            "",
+        ]
         return '\n'.join(output)
 
 

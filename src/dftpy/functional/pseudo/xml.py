@@ -7,11 +7,13 @@ class GPAWXML(BasePseudo):
     '''
     Use the `gpaw` module to read xml-format pseudopotential
     '''
-    def __init__(self, fname, direct = True, **kwargs):
-        super().__init__(fname, direct = direct, **kwargs)
 
-    def read(self, fname, symbol = 'Al', xctype = 'LDA', name='paw'):
-        from gpaw.setup_data import SetupData, PAWXMLParser
+    def __init__(self, fname, direct=True, **kwargs):
+        super().__init__(fname, direct=direct, **kwargs)
+
+    def read(self, fname, symbol='Al', xctype='LDA', name='paw'):
+        from gpaw.setup_data import PAWXMLParser, SetupData
+
         self.info = SetupData(symbol, xctype, name=name, readxml=False)
         fd = open(fname, 'rb')
         PAWXMLParser(self.info).parse(source=fd.read(), world=None)
@@ -24,33 +26,38 @@ class GPAWXML(BasePseudo):
         self._core_density = self.info.nct_g
         self._atomic_density = self.info.nvt_g
 
+
 class PAWXML(BasePseudo):
     '''
     Ref : https://wiki.fysik.dtu.dk/gpaw/setups/pawxml.html
     '''
-    def __init__(self, fname, direct = True, **kwargs):
-        super().__init__(fname, direct = direct, **kwargs)
+
+    def __init__(self, fname, direct=True, **kwargs):
+        super().__init__(fname, direct=direct, **kwargs)
 
     def read(self, fname):
         import xml.etree.ElementTree as ET
-        tree = ET.iterparse(fname,events=['start', 'end'])
+
+        tree = ET.iterparse(fname, events=['start', 'end'])
         for event, elem in tree:
             if event == 'end':
-                if elem.tag in ['radial_grid'] :
+                if elem.tag in ['radial_grid']:
                     self.r = self.get_radial_grid(elem.attrib)
                 elif elem.tag in ['zero_potential']:
                     self.v = np.fromstring(elem.text, dtype=float, sep=" ")
-                elif elem.tag in ['atom'] :
+                elif elem.tag in ['atom']:
                     self._zval = float(elem.attrib['valence'])
-                elif elem.tag in ['pseudo_valence_density'] :
-                    self._atomic_density = np.fromstring(elem.text, dtype=float, sep=" ")
-                elif elem.tag in ['pseudo_core_density'] :
+                elif elem.tag in ['pseudo_valence_density']:
+                    self._atomic_density = np.fromstring(
+                        elem.text, dtype=float, sep=" "
+                    )
+                elif elem.tag in ['pseudo_core_density']:
                     self._core_density = np.fromstring(elem.text, dtype=float, sep=" ")
 
     def get_radial_grid(self, dicts):
         istart = int(dicts['istart'])
         iend = int(dicts['iend'])
-        x = np.arange(istart, iend + 1, dtype = 'float')
+        x = np.arange(istart, iend + 1, dtype='float')
         eq = dicts['eq']
         if eq == 'r=d*i':
             d = float(dicts['d'])
@@ -74,7 +81,7 @@ class PAWXML(BasePseudo):
         elif eq == 'r=(i/n+a)^5/a-a^4':
             a = float(dicts['a'])
             n = int(dicts['n'])
-            r = (x/n + a) ** 5/a - a ** 4
-        else :
+            r = (x / n + a) ** 5 / a - a**4
+        else:
             raise AttributeError("!ERROR : not support eq= ", eq)
         return r

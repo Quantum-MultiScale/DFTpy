@@ -1,7 +1,9 @@
 """Structure optimization. """
+
+import collections.abc
+
 from dftpy.mpi import mp
 from dftpy.utils import IOContext
-import collections.abc
 
 
 class Dynamics(IOContext):
@@ -33,17 +35,21 @@ class Dynamics(IOContext):
         return self.nsteps
 
     def insert_observer(
-        self, function, position=0, interval=1, before_log = False, *args, **kwargs
+        self, function, position=0, interval=1, before_log=False, *args, **kwargs
     ):
         """Insert an observer."""
         if not isinstance(function, collections.abc.Callable):
             function = function.write
         if before_log:
-            self.observers_before_log.insert(position, (function, interval, args, kwargs))
+            self.observers_before_log.insert(
+                position, (function, interval, args, kwargs)
+            )
         else:
-            self.observers_after_log.insert(position, (function, interval, args, kwargs))
+            self.observers_after_log.insert(
+                position, (function, interval, args, kwargs)
+            )
 
-    def attach(self, function, interval=1, before_log = False, *args, **kwargs):
+    def attach(self, function, interval=1, before_log=False, *args, **kwargs):
         """Attach callback function.
 
         If *interval > 0*, at every *interval* steps, call *function* with
@@ -139,18 +145,18 @@ class Dynamics(IOContext):
         return converged
 
     def converged(self, *args):
-        """ a dummy function as placeholder for a real criterion, e.g. in
-        Optimizer """
+        """a dummy function as placeholder for a real criterion, e.g. in
+        Optimizer"""
         return False
 
     def log(self, *args):
-        """ a dummy function as placeholder for a real logger, e.g. in
-        Optimizer """
+        """a dummy function as placeholder for a real logger, e.g. in
+        Optimizer"""
         return True
 
     def initialize(self, *args):
-        """ a dummy function as placeholder for a real initializer, e.g. in
-        Optimizer """
+        """a dummy function as placeholder for a real initializer, e.g. in
+        Optimizer"""
         pass
 
     def step(self):

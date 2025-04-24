@@ -1,7 +1,7 @@
 import numpy as np
 
-from dftpy.functional.external_potential import ExternalPotential
 from dftpy.functional import Functional
+from dftpy.functional.external_potential import ExternalPotential
 from dftpy.optimization import Optimization
 
 

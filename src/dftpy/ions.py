@@ -2,8 +2,8 @@ import numpy as np
 from ase import Atoms
 from ase.atom import Atom
 from ase.atoms import default
-from ase.symbols import symbols2numbers
 from ase.cell import Cell
+from ase.symbols import symbols2numbers
 
 from dftpy.constants import Units
 
@@ -78,7 +78,7 @@ class Ions(Atoms):
         "zval",
         "arrays",
         "pbc",
-        "constraints", # please do not use this
+        "constraints",  # please do not use this
     ]
 
     def __getattribute__(self, name):
@@ -95,32 +95,33 @@ class Ions(Atoms):
         else:
             if not is_special and name not in Ions.allowed_attributes:
                 raise AttributeError(
-                    f"Unsupported attribute `{name}` in {self.__class__.__name__}. Please use 'to_ase' method to convert from ASE object.")
+                    f"Unsupported attribute `{name}` in {self.__class__.__name__}. Please use 'to_ase' method to convert from ASE object."
+                )
         return attr
 
     def __init__(
-            self,
-            symbols=None,
-            positions=None,
-            numbers=None,
-            tags=None,
-            magmoms=None,
-            charges=None,
-            scaled_positions=None,
-            cell=None,
-            celldisp=None,
-            info=None,
-            pbc=True,
+        self,
+        symbols=None,
+        positions=None,
+        numbers=None,
+        tags=None,
+        magmoms=None,
+        charges=None,
+        scaled_positions=None,
+        cell=None,
+        celldisp=None,
+        info=None,
+        pbc=True,
     ):
         if isinstance(symbols, Atoms):
             ase_ions = Ions.from_ase(symbols)
             self.__dict__.update(ase_ions.__dict__)
             return
-        
+
         if hasattr(symbols, "get_positions") or (
-                isinstance(symbols, (list, tuple))
-                and len(symbols) > 0
-                and isinstance(symbols[0], Atom)
+            isinstance(symbols, (list, tuple))
+            and len(symbols) > 0
+            and isinstance(symbols[0], Atom)
         ):
             raise TypeError("Please use 'from_ase' method to convert from ASE object.")
 
@@ -185,7 +186,7 @@ class Ions(Atoms):
             positions=self.get_positions() * Units.Bohr,
             # numbers=self.numbers,d
             tags=self.get_tags(),
-            magmoms=self.get_initial_magnetic_moments() * (Units.A * Units.Bohr ** 2),
+            magmoms=self.get_initial_magnetic_moments() * (Units.A * Units.Bohr**2),
             charges=self.get_initial_charges(),
             cell=self.cell.array * Units.Bohr,
             celldisp=self.get_celldisp() * Units.Bohr,
@@ -201,7 +202,7 @@ class Ions(Atoms):
             positions=atoms.get_positions() / Units.Bohr,
             # numbers=atoms.numbers,
             tags=atoms.get_tags(),
-            magmoms=atoms.get_initial_magnetic_moments() / (Units.A * Units.Bohr ** 2),
+            magmoms=atoms.get_initial_magnetic_moments() / (Units.A * Units.Bohr**2),
             charges=atoms.get_initial_charges(),
             cell=atoms.cell.array / Units.Bohr,
             celldisp=atoms.get_celldisp() / Units.Bohr,
@@ -288,4 +289,6 @@ class Ions(Atoms):
         return zval
 
     def set_constraint(self, constraints):
-        raise AttributeError(f"Unsupported attribute `constraints` in {self.__class__.__name__}. Please use 'to_ase' method to convert from ASE object.")
+        raise AttributeError(
+            f"Unsupported attribute `constraints` in {self.__class__.__name__}. Please use 'to_ase' method to convert from ASE object."
+        )

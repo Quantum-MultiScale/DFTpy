@@ -1,12 +1,12 @@
 # Collection of semilocal functionals
 
 from functools import wraps
-from typing import Set, List, Dict
+from typing import Dict, List, Set
 
 import numpy as np
 import scipy.special as sp
 
-from dftpy.constants import C_TF, TKF0, CBRT_TWO
+from dftpy.constants import C_TF, CBRT_TWO, TKF0
 from dftpy.field import DirectField
 from dftpy.functional.functional_output import FunctionalOutput
 from dftpy.math_utils import PowerInt
@@ -25,6 +25,7 @@ def s_with_tkf0(function):
     Returns
     -------
 
+
     '''
 
     @wraps(function)
@@ -33,7 +34,7 @@ def s_with_tkf0(function):
         ss = s / TKF0
         results = function(ss, *args[1:], **kwargs)
         if 'dFds2' in results:
-            results['dFds2'] /= (TKF0 * TKF0)
+            results['dFds2'] /= TKF0 * TKF0
         return results
 
     return wrapper
@@ -49,7 +50,7 @@ def LKTmVW(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -
     F = 2.0 * exp_1 / (1.0 + exp_2)
     results = {'F': F}
     if 'V' in calcType:
-        dFds2 = - params[0] * (1.0 - exp_2) / (1.0 + exp_2) * F / ss
+        dFds2 = -params[0] * (1.0 - exp_2) / (1.0 + exp_2) * F / ss
         results.update({'dFds2': dFds2})
 
     return results
@@ -60,14 +61,25 @@ def DK(s: DirectField, calcType: Set[str], params: List[float], **kwargs) -> Dic
     \cite{garcia2007kinetic} (8)
     '''
     x = s * s / (72 * C_TF)
-    Fa = 9.0 * params[5] * x ** 4 + params[2] * x ** 3 + params[1] * x ** 2 + params[0] * x + 1.0
-    Fb = params[5] * x ** 3 + params[4] * x ** 2 + params[3] * x + 1.0
+    Fa = (
+        9.0 * params[5] * x**4
+        + params[2] * x**3
+        + params[1] * x**2
+        + params[0] * x
+        + 1.0
+    )
+    Fb = params[5] * x**3 + params[4] * x**2 + params[3] * x + 1.0
     F = Fa / Fb
     results = {'F': F}
     if "V" in calcType:
-        dFds2 = (36.0 * params[5] * x ** 3 + 3 * params[2] * x ** 2 + 2 * params[1] * x + params[0]) / Fb - Fa / (
-                Fb * Fb
-        ) * (3.0 * params[5] * x ** 2 + 2.0 * params[4] * x + params[3])
+        dFds2 = (
+            36.0 * params[5] * x**3
+            + 3 * params[2] * x**2
+            + 2 * params[1] * x
+            + params[0]
+        ) / Fb - Fa / (Fb * Fb) * (
+            3.0 * params[5] * x**2 + 2.0 * params[4] * x + params[3]
+        )
         dFds2 /= 36.0 * C_TF
         results.update({'dFds2': dFds2})
 
@@ -87,7 +99,8 @@ def LLP(s: DirectField, calcType: Set[str], params: List[float], **kwargs) -> Di
     results = {'F': F}
     if "V" in calcType:
         dFds2 = 2.0 * params[0] / Fb - (
-                params[0] * params[1] * bs * np.arcsinh(bs) + Fa * params[1] / np.sqrt(1.0 + bs2)
+            params[0] * params[1] * bs * np.arcsinh(bs)
+            + Fa * params[1] / np.sqrt(1.0 + bs2)
         ) / (Fb * Fb)
         dFds2 *= CBRT_TWO * CBRT_TWO
         results.update({'dFds2': dFds2})
@@ -106,7 +119,9 @@ def OL(s: DirectField, calcType: Set[str], params: List[float], **kwargs) -> Dic
     if "V" in calcType:
         mask = s > tol2
         dFds2 = 1.0 / 36.0 / C_TF * np.ones_like(s)
-        dFds2[mask] += params[0] / C_TF / PowerInt((1 + params[1] * 4 * s[mask]), 2) / s[mask]
+        dFds2[mask] += (
+            params[0] / C_TF / PowerInt((1 + params[1] * 4 * s[mask]), 2) / s[mask]
+        )
         results.update({'dFds2': dFds2})
 
     return results
@@ -122,19 +137,19 @@ def THAK(s: DirectField, calcType: Set[str], params: List[float], **kwargs) -> D
     bs = CBRT_TWO * s
     bs2 = bs * bs
     F = (
-            1.0
-            + params[0] * bs2 / (1.0 + params[1] * bs * np.arcsinh(bs))
-            - params[2] * bs / (1.0 + 2 ** (5.0 / 3.0) * bs)
+        1.0
+        + params[0] * bs2 / (1.0 + params[1] * bs * np.arcsinh(bs))
+        - params[2] * bs / (1.0 + 2 ** (5.0 / 3.0) * bs)
     )
     results = {'F': F}
     if "V" in calcType:
         mask = s > tol2
         Fb = (1.0 + params[1] * bs * np.arcsinh(bs)) ** 2
         dFds2 = (
-                        -(params[0] * params[1] * bs2) / np.sqrt(1 + bs2)
-                        + (params[0] * params[1] * bs * np.arcsinh(bs))
-                        + 2.0 * params[0]
-                ) / Fb
+            -(params[0] * params[1] * bs2) / np.sqrt(1 + bs2)
+            + (params[0] * params[1] * bs * np.arcsinh(bs))
+            + 2.0 * params[0]
+        ) / Fb
         dFds2[mask] -= params[2] / (1.0 + 2 ** (5.0 / 3.0) * bs[mask]) ** 2 / bs[mask]
         dFds2 *= CBRT_TWO * CBRT_TWO
         results.update({'dFds2': dFds2})
@@ -170,7 +185,11 @@ def B86B(s: DirectField, calcType: Set[str], params: List[float], **kwargs) -> D
     F = 1.0 + Fa / Fb
     results = {'F': F}
     if "V" in calcType:
-        dFds2 = (2 * params[0] * (params[1] * bs2 + 5.0)) / (5 * (1.0 + params[1] * bs2) * Fb) * (CBRT_TWO * CBRT_TWO)
+        dFds2 = (
+            (2 * params[0] * (params[1] * bs2 + 5.0))
+            / (5 * (1.0 + params[1] * bs2) * Fb)
+            * (CBRT_TWO * CBRT_TWO)
+        )
         results.update({'dFds2': dFds2})
 
     return results
@@ -187,8 +206,12 @@ def DK87(s: DirectField, calcType: Set[str], params: List[float], **kwargs) -> D
     F = 1.0 + Fa / Fb
     results = {'F': F}
     if "V" in calcType:
-        dFds2 = params[0] * (2.0 + 3.0 * params[1] * bs + params[1] * params[2] * bs2 * bs) / (Fb * Fb) * (
-                CBRT_TWO * CBRT_TWO)
+        dFds2 = (
+            params[0]
+            * (2.0 + 3.0 * params[1] * bs + params[1] * params[2] * bs2 * bs)
+            / (Fb * Fb)
+            * (CBRT_TWO * CBRT_TWO)
+        )
         results.update({'dFds2': dFds2})
 
     return results
@@ -206,7 +229,12 @@ def PW86(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -> 
     F = np.power(Fa, 1.0 / 15.0)
     results = {'F': F}
     if "V" in calcType:
-        dFds2 = 2.0 / 15.0 * (params[0] + 2 * params[1] * s2 + 3 * params[2] * s4) / np.power(Fa, 14.0 / 15.0)
+        dFds2 = (
+            2.0
+            / 15.0
+            * (params[0] + 2 * params[1] * s2 + 3 * params[2] * s4)
+            / np.power(Fa, 14.0 / 15.0)
+        )
         results.update({'dFds2': dFds2})
 
     return results
@@ -227,12 +255,14 @@ def PW910(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) ->
         Fa_s2 = (params[1] - params[2] * np.exp(-params[3] * s2)) - params[5] * s2
 
         dFds2 = 2.0 * (
-                params[1] + (params[3] * s2 - 1) * params[2] * np.exp(-params[3] * s2) - 4.0 * params[5] * s2
+            params[1]
+            + (params[3] * s2 - 1) * params[2] * np.exp(-params[3] * s2)
+            - 4.0 * params[5] * s2
         ) / Fb - Fa_s2 * ss / (Fb * Fb) * (
-                        (params[0] * params[4] * ss) / (params[4] ** 2 * s2 + 1)
-                        + params[0] * np.arcsinh(params[4] * ss)
-                        + 4.0 * params[5] * s2
-                )
+            (params[0] * params[4] * ss) / (params[4] ** 2 * s2 + 1)
+            + params[0] * np.arcsinh(params[4] * ss)
+            + 4.0 * params[5] * s2
+        )
         results.update({'dFds2': dFds2})
 
     return results
@@ -247,26 +277,30 @@ def PW91(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -> 
     tol2 = 1.0e-8
     s2 = ss * ss
     s4 = s2 * s2
-    Fa = 1.0 + params[0] * ss * np.arcsinh(params[4] * ss) + (params[1] - params[2] * np.exp(-params[3] * s2)) * s2
+    Fa = (
+        1.0
+        + params[0] * ss * np.arcsinh(params[4] * ss)
+        + (params[1] - params[2] * np.exp(-params[3] * s2)) * s2
+    )
     Fb = 1.0 + params[0] * ss * np.arcsinh(params[4] * ss) + params[5] * s4
     F = Fa / Fb
     results = {'F': F}
     if "V" in calcType:
         Fa_s = (
-                params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
-                + params[0] * np.arcsinh(params[4] * ss)
-                + 2.0
-                * ss
-                * (
-                        params[1]
-                        + 2.0 * params[2] * params[3] * s2 * np.exp(-params[3] * s2)
-                        - 2.0 * params[2] * np.exp(-params[3] * s2)
-                )
+            params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
+            + params[0] * np.arcsinh(params[4] * ss)
+            + 2.0
+            * ss
+            * (
+                params[1]
+                + 2.0 * params[2] * params[3] * s2 * np.exp(-params[3] * s2)
+                - 2.0 * params[2] * np.exp(-params[3] * s2)
+            )
         )
 
         dFds2 = Fa_s / Fb - Fa / (Fb * Fb) * (
-                params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
-                + (params[0] * np.arcsinh(params[4] * ss) + 4.0 * params[5] * s2 * ss)
+            params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
+            + (params[0] * np.arcsinh(params[4] * ss) + 4.0 * params[5] * s2 * ss)
         )
 
         mask = ss > tol2
@@ -287,28 +321,36 @@ def LG94(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -> 
     s8 = s4 * s4
     s10 = s4 * s6
     s12 = s6 * s6
-    Fa = 1.0 + params[0] * s2 + params[1] * s4 + params[2] * s6 + params[3] * s8 + params[4] * s10 + params[5] * s12
+    Fa = (
+        1.0
+        + params[0] * s2
+        + params[1] * s4
+        + params[2] * s6
+        + params[3] * s8
+        + params[4] * s10
+        + params[5] * s12
+    )
     Fb = 1.0 + 1e-8 * s2
     F = np.power((Fa / Fb), params[6])
     results = {'F': F}
     if "V" in calcType:
         dFds2 = (
-                -2
-                * params[6]
-                * F
+            -2
+            * params[6]
+            * F
+            * (
+                1e-8 * Fa
+                - Fb
                 * (
-                        1e-8 * Fa
-                        - Fb
-                        * (
-                                params[0]
-                                + 2 * params[1] * s2
-                                + 3 * params[2] * s4
-                                + 4 * params[3] * s6
-                                + 5 * params[4] * s8
-                                + 6 * params[5] * s10
-                        )
+                    params[0]
+                    + 2 * params[1] * s2
+                    + 3 * params[2] * s4
+                    + 4 * params[3] * s6
+                    + 5 * params[4] * s8
+                    + 6 * params[5] * s10
                 )
-                / (Fa * Fb)
+            )
+            / (Fa * Fb)
         )
         results.update({'dFds2': dFds2})
 
@@ -328,7 +370,9 @@ def P92(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -> D
     F = Fa / Fb
     results = {'F': F}
     if "V" in calcType:
-        dFds2 = (2.0 * params[1] + 4.0 * params[2] * s2) / Fb - (2.0 * params[3] * Fa) / (Fb * Fb)
+        dFds2 = (2.0 * params[1] + 4.0 * params[2] * s2) / Fb - (
+            2.0 * params[3] * Fa
+        ) / (Fb * Fb)
         results.update({'dFds2': dFds2})
 
     return results
@@ -397,7 +441,9 @@ def VJKS00(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -
     F = Fa / Fb
     results = {'F': F}
     if "V" in calcType:
-        dFds2 = (2.0 * params[0] - 6.0 * params[2] * s4)/ Fb - (2.0 * params[1] + 4.0 * params[2] * s2)*Fa/(Fb*Fb)
+        dFds2 = (2.0 * params[0] - 6.0 * params[2] * s4) / Fb - (
+            2.0 * params[1] + 4.0 * params[2] * s2
+        ) * Fa / (Fb * Fb)
         results.update({'dFds2': dFds2})
 
     return results
@@ -413,19 +459,27 @@ def VT84F(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) ->
     s2[s2 < tol2] = tol2
     s4 = s2 * s2
     F = (
-            1.0
-            + 5.0 / 3.0 * s2
-            + params[0] * s2 * np.exp(-params[1] * s2) / (1 + params[0] * s2)
-            + (1 - np.exp(-params[1] * s4)) * (1.0 / s2 - 1.0)
+        1.0
+        + 5.0 / 3.0 * s2
+        + params[0] * s2 * np.exp(-params[1] * s2) / (1 + params[0] * s2)
+        + (1 - np.exp(-params[1] * s4)) * (1.0 / s2 - 1.0)
     )
     results = {'F': F}
     if "V" in calcType:
         dFds2 = (
-                10.0 / 3.0
-                + 2.0 * params[0] * np.exp(-params[1] * s2) * (1.0 - params[1] * s2) / (1 + params[0] * s2)
-                - 2.0 * params[0] * s2 * np.exp(-params[1] * s2) / PowerInt((1 + params[0] * s2), 2)
-                + 4.0 * params[1] * s2 * (1.0 / s2 - 1.0) * np.exp(-params[1] * s4)
-                - 2.0 * (1 - np.exp(-params[1] * s4)) / (s4)
+            10.0 / 3.0
+            + 2.0
+            * params[0]
+            * np.exp(-params[1] * s2)
+            * (1.0 - params[1] * s2)
+            / (1 + params[0] * s2)
+            - 2.0
+            * params[0]
+            * s2
+            * np.exp(-params[1] * s2)
+            / PowerInt((1 + params[0] * s2), 2)
+            + 4.0 * params[1] * s2 * (1.0 / s2 - 1.0) * np.exp(-params[1] * s4)
+            - 2.0 * (1 - np.exp(-params[1] * s4)) / (s4)
         )
         results.update({'dFds2': dFds2})
 
@@ -434,8 +488,7 @@ def VT84F(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) ->
 
 @s_with_tkf0
 def TFVW(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -> Dict:
-    '''
-    '''
+    ''' '''
     s2 = ss * ss
     F = params[0] + 5.0 / 3.0 * params[1] * s2
     results = {'F': F}
@@ -448,8 +501,7 @@ def TFVW(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -> 
 
 @s_with_tkf0
 def STV(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -> Dict:
-    '''
-    '''
+    ''' '''
     s2 = ss * ss
     Fb = params[3] + params[2] * s2
     F = params[0] + 5.0 / 3.0 * params[1] * s2 / Fb
@@ -463,8 +515,7 @@ def STV(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -> D
 
 @s_with_tkf0
 def PBE2M(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -> Dict:
-    '''
-    '''
+    ''' '''
     s2 = ss * ss
     Fa = params[2] * s2
     Fb = params[0] + params[1] * s2
@@ -489,8 +540,11 @@ def PG(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -> Di
 
     return results
 
+
 @s_with_tkf0
-def GE2(ss: DirectField, calcType: Set[str], params: List[float], q: DirectField, **kwargs) -> Dict:
+def GE2(
+    ss: DirectField, calcType: Set[str], params: List[float], q: DirectField, **kwargs
+) -> Dict:
     s2 = ss * ss
     F = params[0] + params[1] * s2 + params[2] * q
     results = {'F': F}
@@ -502,8 +556,11 @@ def GE2(ss: DirectField, calcType: Set[str], params: List[float], q: DirectField
 
     return results
 
+
 @s_with_tkf0
-def GE4(ss: DirectField, calcType: Set[str], params: List[float], q: DirectField, **kwargs) -> Dict:
+def GE4(
+    ss: DirectField, calcType: Set[str], params: List[float], q: DirectField, **kwargs
+) -> Dict:
     results = GE2.__wrapped__(ss, calcType=calcType, params=params[:3], q=q, **kwargs)
     s2 = ss * ss
     F = params[3] * q * q + params[4] * q * s2 + params[5] * s2 * s2
@@ -516,11 +573,14 @@ def GE4(ss: DirectField, calcType: Set[str], params: List[float], q: DirectField
 
     return results
 
+
 @s_with_tkf0
-def PGSL(ss: DirectField, calcType: Set[str], params: List[float], q: DirectField, **kwargs) -> Dict:
+def PGSL(
+    ss: DirectField, calcType: Set[str], params: List[float], q: DirectField, **kwargs
+) -> Dict:
     s2 = ss * ss
     Fa = np.exp(-params[1] * s2)
-    F = Fa + q**2*params[0] + 5.0 / 3.0 * params[2] * s2
+    F = Fa + q**2 * params[0] + 5.0 / 3.0 * params[2] * s2
     results = {'F': F}
     if "V" in calcType:
         dFds2 = -2.0 * params[1] * Fa + 10.0 / 3.0 * params[2]
@@ -530,8 +590,11 @@ def PGSL(ss: DirectField, calcType: Set[str], params: List[float], q: DirectFiel
 
     return results
 
+
 @s_with_tkf0
-def PGSLr(ss: DirectField, calcType: Set[str], params: List[float], q: DirectField, **kwargs) -> Dict:
+def PGSLr(
+    ss: DirectField, calcType: Set[str], params: List[float], q: DirectField, **kwargs
+) -> Dict:
     results = PGSL.__wrapped__(ss, calcType=calcType, params=params[2:], q=q, **kwargs)
     s2 = ss * ss
     F = -params[0] * q * s2 + params[1] * s2 * s2
@@ -543,8 +606,11 @@ def PGSLr(ss: DirectField, calcType: Set[str], params: List[float], q: DirectFie
         results['dFdq'] += dFdq
     return results
 
+
 @s_with_tkf0
-def LKT_legacy(ss: DirectField, calcType: Set[str], params: List[float], **kwargs) -> Dict:
+def LKT_legacy(
+    ss: DirectField, calcType: Set[str], params: List[float], **kwargs
+) -> Dict:
     s2 = ss * ss
     F = np.empty_like(ss)
     dFds2 = np.empty_like(ss)
@@ -554,21 +620,25 @@ def LKT_legacy(ss: DirectField, calcType: Set[str], params: List[float], **kwarg
     F[mask] = 1.0 / np.cosh(params[0] * ss[mask]) + 5.0 / 3.0 * (s2[mask]) * params[1]
     F[mask1] = 5.0 / 3.0 * (s2[mask1]) * params[1]
     F[mask2] = (
-            1.0 + (5.0 / 3.0 * params[1] - 0.5 * params[0] ** 2) * s2[mask2] + 5.0 / 24.0 * params[0] ** 4 * s2[
-        mask2] ** 2
+        1.0
+        + (5.0 / 3.0 * params[1] - 0.5 * params[0] ** 2) * s2[mask2]
+        + 5.0 / 24.0 * params[0] ** 4 * s2[mask2] ** 2
     )  # - 61.0/720.0 * params[0] ** 6 * s2[mask2] ** 3
     results = {'F': F}
     if "V" in calcType:
         dFds2[mask] = (
-                10.0 / 3.0 * params[1] - params[0] * np.sinh(params[0] * ss[mask]) / np.cosh(
-            params[0] * ss[mask]) ** 2 / ss[mask]
+            10.0 / 3.0 * params[1]
+            - params[0]
+            * np.sinh(params[0] * ss[mask])
+            / np.cosh(params[0] * ss[mask]) ** 2
+            / ss[mask]
         )
         dFds2[mask1] = 10.0 / 3.0 * params[1]
         dFds2[mask2] = (
-                10.0 / 3.0 * params[1]
-                - params[0] ** 2
-                + 5.0 / 6.0 * params[0] ** 4 * s2[mask2]
-                - 61.0 / 120.0 * params[0] ** 6 * s2[mask2] ** 2
+            10.0 / 3.0 * params[1]
+            - params[0] ** 2
+            + 5.0 / 6.0 * params[0] ** 4 * s2[mask2]
+            - 61.0 / 120.0 * params[0] ** 6 * s2[mask2] ** 2
         )
         results.update({'dFds2': dFds2})
 
@@ -579,7 +649,10 @@ LLP_dict = {"function": LLP, "params": [0.0044188, 0.0253]}
 OL_dict = {"function": OL, "params": [0.00677, 0.0]}
 THAK_dict = {"function": THAK, "params": [0.0055, 0.0253, 0.072]}
 B86_dict = {"function": B86A, "params": [0.0039, 0.004]}
-PW91_dict = {"function": PW91, "params": [0.19645, 0.2747, 0.1508, 100.0, 7.7956, 0.004]}
+PW91_dict = {
+    "function": PW91,
+    "params": [0.19645, 0.2747, 0.1508, 100.0, 7.7956, 0.004],
+}
 APBE_dict = {"function": PBE, "params": [0.804, 0.23889]}
 REVAPBE_dict = {"function": PBE, "params": [1.245, 0.23889]}
 TFVW_dict = {"function": TFVW, "params": [1.0, 1.0]}
@@ -587,7 +660,10 @@ TFVW_dict = {"function": TFVW, "params": [1.0, 1.0]}
 GGA_KEDF_list = {
     "LKT-VW": {"function": LKTmVW, "params": [1.3]},
     "LKT": {"function": LKT_legacy, "params": [1.3, 1.0]},  # \cite{luo2018simple}
-    "DK": {"function": DK, "params": [0.95, 14.28111, -19.5762, -0.05, 9.99802, 2.96085]},
+    "DK": {
+        "function": DK,
+        "params": [0.95, 14.28111, -19.5762, -0.05, 9.99802, 2.96085],
+    },
     # \cite{garcia2007kinetic} (8)
     "LLP": LLP_dict,  # \cite{garcia2007kinetic} (9)[!x] \cite{gotz2009performance} (18)
     "LLP91": LLP_dict,  # \cite{garcia2007kinetic} (9)[!x] \cite{gotz2009performance} (18)
@@ -600,24 +676,61 @@ GGA_KEDF_list = {
     # \cite{garcia2007kinetic} (12),\cite{gotz2009performance} (22), \cite{hfofke} (15)[!x]
     "B86A": B86_dict,  # \cite{garcia2007kinetic} (13)
     "B86": B86_dict,  # \cite{garcia2007kinetic} (13)
-    "B86B": {"function": B86B, "params": [0.00403, 0.007]},  # \cite{garcia2007kinetic} (14)
-    "DK87": {"function": DK87, "params": [7.0 / 324.0 / (18.0 * np.pi ** 4) ** (1.0 / 3.0), 0.861504, 0.044286]},
+    "B86B": {
+        "function": B86B,
+        "params": [0.00403, 0.007],
+    },  # \cite{garcia2007kinetic} (14)
+    "DK87": {
+        "function": DK87,
+        "params": [7.0 / 324.0 / (18.0 * np.pi**4) ** (1.0 / 3.0), 0.861504, 0.044286],
+    },
     # \cite{garcia2007kinetic} (15)
-    "PW86": {"function": PW86, "params": [1.296, 14.0, 0.2]},  # \cite{gotz2009performance} (19)
-    "PW91O": {"function": PW910, "params": [0.093907, 0.26608, 0.0809615, 100.0, 76.320, 0.57767e-4]},
+    "PW86": {
+        "function": PW86,
+        "params": [1.296, 14.0, 0.2],
+    },  # \cite{gotz2009performance} (19)
+    "PW91O": {
+        "function": PW910,
+        "params": [0.093907, 0.26608, 0.0809615, 100.0, 76.320, 0.57767e-4],
+    },
     # (A1, A2, A3, A4, A, B1)  # \cite{gotz2009performance} (20)
     "PW91": PW91_dict,
     # (A1, A2, A3, A4, A, B1) # \cite{lacks1994tests} (16) and \cite{garcia2007kinetic} (17)[!x]
     "PW91k": PW91_dict,
     # (A1, A2, A3, A4, A, B1) # \cite{lacks1994tests} (16) and \cite{garcia2007kinetic} (17)[!x]
-    "LG94": {"function": LG94,
-             "params": [(1e-8 + 0.1234) / 0.024974, 29.790, 22.417, 12.119, 1570.1, 55.944, 0.024974]},
+    "LG94": {
+        "function": LG94,
+        "params": [
+            (1e-8 + 0.1234) / 0.024974,
+            29.790,
+            22.417,
+            12.119,
+            1570.1,
+            55.944,
+            0.024974,
+        ],
+    },
     # a2, a4, a6, a8, a10, a12, b # \cite{garcia2007kinetic} (18)
-    "E00": {"function": P92, "params": [135.0, 28.0, 5.0, 3.0]},  # \cite{gotz2009performance} (14)
-    "P92": {"function": P92, "params": [1.0, 88.3960, 16.3683, 88.2108]},  # \cite{gotz2009performance} (15)
-    "PBE2": {"function": PBE, "params": [2.0309/0.2942, 2.0309]},  # \cite{gotz2009performance} (23)
-    "PBE3": {"function": PBE, "params": [-3.7425/4.1355, -3.7425, 50.258]},  # \cite{gotz2009performance} (23)
-    "PBE4": {"function": PBE, "params": [-7.2333/1.7107, -7.2333, 61.645, -93.683]},  # \cite{gotz2009performance} (23)
+    "E00": {
+        "function": P92,
+        "params": [135.0, 28.0, 5.0, 3.0],
+    },  # \cite{gotz2009performance} (14)
+    "P92": {
+        "function": P92,
+        "params": [1.0, 88.3960, 16.3683, 88.2108],
+    },  # \cite{gotz2009performance} (15)
+    "PBE2": {
+        "function": PBE,
+        "params": [2.0309 / 0.2942, 2.0309],
+    },  # \cite{gotz2009performance} (23)
+    "PBE3": {
+        "function": PBE,
+        "params": [-3.7425 / 4.1355, -3.7425, 50.258],
+    },  # \cite{gotz2009performance} (23)
+    "PBE4": {
+        "function": PBE,
+        "params": [-7.2333 / 1.7107, -7.2333, 61.645, -93.683],
+    },  # \cite{gotz2009performance} (23)
     "P82": {"function": P82, "params": [5.0 / 27.0]},  # \cite{hfofke} (9)
     "TW02": {"function": PBE, "params": [0.8438, 0.2319]},  # \cite{hfofke} (20)
     "APBE": APBE_dict,  # \cite{hfofke} (32)
@@ -625,10 +738,19 @@ GGA_KEDF_list = {
     "REVAPBEK": REVAPBE_dict,  # \cite{hfofke} (33)
     "REVAPBE": REVAPBE_dict,  # \cite{hfofke} (33)
     "RPBE": {"function": PBE, "params": [1.9632, 0.01979]},
-    "VJKS00": {"function": VJKS00, "params": [0.8944, 0.6511, 0.0431]},  # \cite{hfofke} (18) !something wrong
-    "LC94": {"function": PW91, "params": [0.093907, 0.26608, 0.0809615, 100.0, 76.32, 0.000057767]},
+    "VJKS00": {
+        "function": VJKS00,
+        "params": [0.8944, 0.6511, 0.0431],
+    },  # \cite{hfofke} (18) !something wrong
+    "LC94": {
+        "function": PW91,
+        "params": [0.093907, 0.26608, 0.0809615, 100.0, 76.32, 0.000057767],
+    },
     # \cite{hfofke} (16) # same as PW91
-    "VT84F": {"function": VT84F, "params": [2.777028126, 2.777028126 - 40.0 / 27.0]},  # \cite{hfofke} (33)
+    "VT84F": {
+        "function": VT84F,
+        "params": [2.777028126, 2.777028126 - 40.0 / 27.0],
+    },  # \cite{hfofke} (33)
     # "LKT-PADE46": [1.3],
     # "LKT-PADE46-S": [1.3, 0.01],
     # "SMP": [1.0],  # test functional
@@ -643,14 +765,22 @@ GGA_KEDF_list = {
 }
 
 MGGA_KEDF_list = {
-    "GE2": {"function": GE2, "params": [1.0, 5.0/27.0, 20.0/9.0]},
-    "GE4": {"function": GE4, "params": [1.0, 5.0/27.0, 20.0/9.0, 8.0/81.0, -1.0/9.0, 8.0/243.0]},
-    "PGSL": {"function": PGSL, "params": [0.25, 40.0/27.0, 1.0]}, # \beta, \mu, vw
-    "PGSLR": {"function": PGSLr, "params": [0.40, 0.20, 0.25, 40.0/27.0, 1.0]}, # \lambda, \sigma, \beta, \mu, vw
+    "GE2": {"function": GE2, "params": [1.0, 5.0 / 27.0, 20.0 / 9.0]},
+    "GE4": {
+        "function": GE4,
+        "params": [1.0, 5.0 / 27.0, 20.0 / 9.0, 8.0 / 81.0, -1.0 / 9.0, 8.0 / 243.0],
+    },
+    "PGSL": {"function": PGSL, "params": [0.25, 40.0 / 27.0, 1.0]},  # \beta, \mu, vw
+    "PGSLR": {
+        "function": PGSLr,
+        "params": [0.40, 0.20, 0.25, 40.0 / 27.0, 1.0],
+    },  # \lambda, \sigma, \beta, \mu, vw
 }
 
 
-def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=None, **kwargs):
+def GGAFs(
+    s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=None, **kwargs
+):
     r"""
     ckf = (3\pi^2)^{1/3}
     C_TF = (3/10) * (3\pi^2)^{2/3} = (3/10) * ckf^2
@@ -709,39 +839,56 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         mask1 = ss > 100.0
         mask2 = ss < 1e-5
         mask = np.invert(np.logical_or(mask1, mask2))
-        F[mask] = 1.0 / np.cosh(params[0] * ss[mask]) + 5.0 / 3.0 * (s2[mask]) * params[1]
+        F[mask] = (
+            1.0 / np.cosh(params[0] * ss[mask]) + 5.0 / 3.0 * (s2[mask]) * params[1]
+        )
         F[mask1] = 5.0 / 3.0 * (s2[mask1]) * params[1]
         F[mask2] = (
-                1.0 + (5.0 / 3.0 * params[1] - 0.5 * params[0] ** 2) * s2[mask2] + 5.0 / 24.0 * params[0] ** 4 * s2[
-            mask2] ** 2
+            1.0
+            + (5.0 / 3.0 * params[1] - 0.5 * params[0] ** 2) * s2[mask2]
+            + 5.0 / 24.0 * params[0] ** 4 * s2[mask2] ** 2
         )  # - 61.0/720.0 * params[0] ** 6 * s2[mask2] ** 3
         if "V" in calcType:
             dFds2[mask] = (
-                    10.0 / 3.0 * params[1] - params[0] * np.sinh(params[0] * ss[mask]) / np.cosh(
-                params[0] * ss[mask]) ** 2 / ss[mask]
+                10.0 / 3.0 * params[1]
+                - params[0]
+                * np.sinh(params[0] * ss[mask])
+                / np.cosh(params[0] * ss[mask]) ** 2
+                / ss[mask]
             )
             dFds2[mask1] = 10.0 / 3.0 * params[1]
             dFds2[mask2] = (
-                    10.0 / 3.0 * params[1]
-                    - params[0] ** 2
-                    + 5.0 / 6.0 * params[0] ** 4 * s2[mask2]
-                    - 61.0 / 120.0 * params[0] ** 6 * s2[mask2] ** 2
+                10.0 / 3.0 * params[1]
+                - params[0] ** 2
+                + 5.0 / 6.0 * params[0] ** 4 * s2[mask2]
+                - 61.0 / 120.0 * params[0] ** 6 * s2[mask2] ** 2
             )
-            dFds2 /= TKF0 ** 2
+            dFds2 /= TKF0**2
 
     elif functional == "DK":  # \cite{garcia2007kinetic} (8)
         x = s * s / (72 * C_TF)
-        Fa = 9.0 * params[5] * x ** 4 + params[2] * x ** 3 + params[1] * x ** 2 + params[0] * x + 1.0
-        Fb = params[5] * x ** 3 + params[4] * x ** 2 + params[3] * x + 1.0
+        Fa = (
+            9.0 * params[5] * x**4
+            + params[2] * x**3
+            + params[1] * x**2
+            + params[0] * x
+            + 1.0
+        )
+        Fb = params[5] * x**3 + params[4] * x**2 + params[3] * x + 1.0
         F = Fa / Fb
         if "V" in calcType:
-            dFds2 = (36.0 * params[5] * x ** 3 + 3 * params[2] * x ** 2 + 2 * params[1] * x + params[0]) / Fb - Fa / (
-                    Fb * Fb
-            ) * (3.0 * params[5] * x ** 2 + 2.0 * params[4] * x + params[3])
+            dFds2 = (
+                36.0 * params[5] * x**3
+                + 3 * params[2] * x**2
+                + 2 * params[1] * x
+                + params[0]
+            ) / Fb - Fa / (Fb * Fb) * (
+                3.0 * params[5] * x**2 + 2.0 * params[4] * x + params[3]
+            )
             dFds2 /= 36.0 * C_TF
 
     elif (
-            functional == "LLP" or functional == "LLP91"
+        functional == "LLP" or functional == "LLP91"
     ):  # \cite{garcia2007kinetic} (9)[!x] \cite{gotz2009performance} (18)
         bs = b * s
         bs2 = bs * bs
@@ -750,7 +897,8 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         F = 1.0 + Fa / Fb
         if "V" in calcType:
             dFds2 = 2.0 * params[0] / Fb - (
-                    params[0] * params[1] * bs * np.arcsinh(bs) + Fa * params[1] / np.sqrt(1.0 + bs2)
+                params[0] * params[1] * bs * np.arcsinh(bs)
+                + Fa * params[1] / np.sqrt(1.0 + bs2)
             ) / (Fb * Fb)
             dFds2 *= b * b
 
@@ -769,25 +917,27 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
             dFds2[mask] += params[0] / C_TF / (1 + 4 * s[mask]) ** 2 / s[mask]
 
     elif (
-            functional == "T92" or functional == "THAK"
+        functional == "T92" or functional == "THAK"
     ):  # \cite{garcia2007kinetic} (12),\cite{gotz2009performance} (22), \cite{hfofke} (15)[!x]
         bs = b * s
         bs2 = bs * bs
         F = (
-                1.0
-                + params[0] * bs2 / (1.0 + params[1] * bs * np.arcsinh(bs))
-                - params[2] * bs / (1.0 + 2 ** (5.0 / 3.0) * bs)
+            1.0
+            + params[0] * bs2 / (1.0 + params[1] * bs * np.arcsinh(bs))
+            - params[2] * bs / (1.0 + 2 ** (5.0 / 3.0) * bs)
         )
         # F = 1.0 + params[0] * bs2 / (1.0 + params[1] * bs * np.arcsinh(bs)) - params[2] * bs / (1.0+ 2**2 * bs)
         if "V" in calcType:
             mask = s > tol2
             Fb = (1.0 + params[1] * bs * np.arcsinh(bs)) ** 2
             dFds2 = (
-                            -(params[0] * params[1] * bs2) / np.sqrt(1 + bs2)
-                            + (params[0] * params[1] * bs * np.arcsinh(bs))
-                            + 2.0 * params[0]
-                    ) / Fb
-            dFds2[mask] -= params[2] / (1.0 + 2 ** (5.0 / 3.0) * bs[mask]) ** 2 / bs[mask]
+                -(params[0] * params[1] * bs2) / np.sqrt(1 + bs2)
+                + (params[0] * params[1] * bs * np.arcsinh(bs))
+                + 2.0 * params[0]
+            ) / Fb
+            dFds2[mask] -= (
+                params[2] / (1.0 + 2 ** (5.0 / 3.0) * bs[mask]) ** 2 / bs[mask]
+            )
             # dFds2[mask] -= params[2]/(1.0+4* bs[mask]) ** 2/bs[mask]
             dFds2 *= b * b
 
@@ -807,7 +957,11 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         Fb = (1.0 + params[1] * bs2) ** (4.0 / 5.0)
         F = 1.0 + Fa / Fb
         if "V" in calcType:
-            dFds2 = (2 * params[0] * (params[1] * bs2 + 5.0)) / (5 * (1.0 + params[1] * bs2) * Fb) * (b * b)
+            dFds2 = (
+                (2 * params[0] * (params[1] * bs2 + 5.0))
+                / (5 * (1.0 + params[1] * bs2) * Fb)
+                * (b * b)
+            )
 
     elif functional == "DK87":  # \cite{garcia2007kinetic} (15)
         bs = b * s
@@ -816,7 +970,12 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         Fb = 1.0 + params[2] * bs2
         F = 1.0 + Fa / Fb
         if "V" in calcType:
-            dFds2 = params[0] * (2.0 + 3.0 * params[1] * bs + params[1] * params[2] * bs2 * bs) / (Fb * Fb) * (b * b)
+            dFds2 = (
+                params[0]
+                * (2.0 + 3.0 * params[1] * bs + params[1] * params[2] * bs2 * bs)
+                / (Fb * Fb)
+                * (b * b)
+            )
 
     elif functional == "PW86":  # \cite{gotz2009performance} (19)
         ss = s / TKF0
@@ -826,7 +985,12 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         Fa = 1.0 + params[0] * s2 + params[1] * s4 + params[2] * s6
         F = Fa ** (1.0 / 15.0)
         if "V" in calcType:
-            dFds2 = 2.0 / 15.0 * (params[0] + 2 * params[1] * s2 + 3 * params[2] * s4) / Fa ** (14.0 / 15.0)
+            dFds2 = (
+                2.0
+                / 15.0
+                * (params[0] + 2 * params[1] * s2 + 3 * params[2] * s4)
+                / Fa ** (14.0 / 15.0)
+            )
             dFds2 /= TKF0 * TKF0
 
     elif functional == "PW91O":  # \cite{gotz2009performance} (20)
@@ -840,39 +1004,45 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
             Fa_s2 = (params[1] - params[2] * np.exp(-params[3] * s2)) - params[5] * s2
 
             dFds2 = 2.0 * (
-                    params[1] + (params[3] * s2 - 1) * params[2] * np.exp(-params[3] * s2) - 4.0 * params[5] * s2
+                params[1]
+                + (params[3] * s2 - 1) * params[2] * np.exp(-params[3] * s2)
+                - 4.0 * params[5] * s2
             ) / Fb - Fa_s2 * ss / (Fb * Fb) * (
-                            (params[0] * params[4] * ss) / (params[4] ** 2 * s2 + 1)
-                            + params[0] * np.arcsinh(params[4] * ss)
-                            + 4.0 * params[5] * s2
-                    )
+                (params[0] * params[4] * ss) / (params[4] ** 2 * s2 + 1)
+                + params[0] * np.arcsinh(params[4] * ss)
+                + 4.0 * params[5] * s2
+            )
             dFds2 /= TKF0 * TKF0
 
     elif (
-            functional == "PW91" or functional == "PW91k"
+        functional == "PW91" or functional == "PW91k"
     ):  # \cite{lacks1994tests} (16) and \cite{garcia2007kinetic} (17)[!x]
         ss = s / TKF0
         s2 = ss * ss
         s4 = s2 * s2
-        Fa = 1.0 + params[0] * ss * np.arcsinh(params[4] * ss) + (params[1] - params[2] * np.exp(-params[3] * s2)) * s2
+        Fa = (
+            1.0
+            + params[0] * ss * np.arcsinh(params[4] * ss)
+            + (params[1] - params[2] * np.exp(-params[3] * s2)) * s2
+        )
         Fb = 1.0 + params[0] * ss * np.arcsinh(params[4] * ss) + params[5] * s4
         F = Fa / Fb
         if "V" in calcType:
             Fa_s = (
-                    params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
-                    + params[0] * np.arcsinh(params[4] * ss)
-                    + 2.0
-                    * ss
-                    * (
-                            params[1]
-                            + 2.0 * params[2] * params[3] * s2 * np.exp(-params[3] * s2)
-                            - 2.0 * params[2] * np.exp(-params[3] * s2)
-                    )
+                params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
+                + params[0] * np.arcsinh(params[4] * ss)
+                + 2.0
+                * ss
+                * (
+                    params[1]
+                    + 2.0 * params[2] * params[3] * s2 * np.exp(-params[3] * s2)
+                    - 2.0 * params[2] * np.exp(-params[3] * s2)
+                )
             )
 
             dFds2 = Fa_s / Fb - Fa / (Fb * Fb) * (
-                    params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
-                    + (params[0] * np.arcsinh(params[4] * ss) + 4.0 * params[5] * s2 * ss)
+                params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
+                + (params[0] * np.arcsinh(params[4] * ss) + 4.0 * params[5] * s2 * ss)
             )
 
             mask = s > tol2
@@ -887,27 +1057,35 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         s8 = s4 * s4
         s10 = s4 * s6
         s12 = s6 * s6
-        Fa = 1.0 + params[0] * s2 + params[1] * s4 + params[2] * s6 + params[3] * s8 + params[4] * s10 + params[5] * s12
+        Fa = (
+            1.0
+            + params[0] * s2
+            + params[1] * s4
+            + params[2] * s6
+            + params[3] * s8
+            + params[4] * s10
+            + params[5] * s12
+        )
         Fb = 1.0 + 1e-8 * s2
         F = (Fa / Fb) ** params[6]
         if "V" in calcType:
             dFds2 = (
-                    -2
-                    * params[6]
-                    * F
+                -2
+                * params[6]
+                * F
+                * (
+                    1e-8 * Fa
+                    - Fb
                     * (
-                            1e-8 * Fa
-                            - Fb
-                            * (
-                                    params[0]
-                                    + 2 * params[1] * s2
-                                    + 3 * params[2] * s4
-                                    + 4 * params[3] * s6
-                                    + 5 * params[4] * s8
-                                    + 6 * params[5] * s10
-                            )
+                        params[0]
+                        + 2 * params[1] * s2
+                        + 3 * params[2] * s4
+                        + 4 * params[3] * s6
+                        + 5 * params[4] * s8
+                        + 6 * params[5] * s10
                     )
-                    / (Fa * Fb)
+                )
+                / (Fa * Fb)
             )
             dFds2 /= TKF0 * TKF0
 
@@ -919,7 +1097,9 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         Fb = params[0] + params[3] * s2
         F = Fa / Fb
         if "V" in calcType:
-            dFds2 = (2.0 * params[1] + 4.0 * params[2] * s2) / Fb - (2.0 * params[3] * Fa) / (Fb * Fb)
+            dFds2 = (2.0 * params[1] + 4.0 * params[2] * s2) / Fb - (
+                2.0 * params[3] * Fa
+            ) / (Fb * Fb)
             dFds2 /= TKF0 * TKF0
 
     elif functional == "P92":  # \cite{gotz2009performance} (15)
@@ -930,7 +1110,9 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         Fb = params[0] + params[3] * s2
         F = Fa / Fb
         if "V" in calcType:
-            dFds2 = (2.0 * params[1] + 4.0 * params[2] * s2) / Fb - (2.0 * params[3] * Fa) / (Fb * Fb)
+            dFds2 = (2.0 * params[1] + 4.0 * params[2] * s2) / Fb - (
+                2.0 * params[3] * Fa
+            ) / (Fb * Fb)
             dFds2 /= TKF0 * TKF0
 
     elif functional == "PBE2":  # \cite{gotz2009performance} (23)
@@ -964,7 +1146,11 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         Fb3 = Fb * Fb * Fb
         F = 1.0 + params[1] * s2 / Fb + params[2] * s4 / Fb2 + params[3] * s6 / Fb3
         if "V" in calcType:
-            dFds2 = 2.0 * params[1] / Fb2 + 4 * params[2] * s2 / (Fb3) + 6 * params[3] * s4 / (Fb3 * Fb)
+            dFds2 = (
+                2.0 * params[1] / Fb2
+                + 4 * params[2] * s2 / (Fb3)
+                + 6 * params[3] * s4 / (Fb3 * Fb)
+            )
             dFds2 /= TKF0 * TKF0
 
     elif functional == "P82":  # \cite{hfofke} (9)
@@ -1016,32 +1202,38 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         Fb = 1.0 + params[1] * s2 + params[2] * s4
         F = Fa / Fb
         if "V" in calcType:
-            dFds2 = (2.0 * params[0] - 6.0 * params[2] * s4)/ Fb - (2.0 * params[1] + 4.0 * params[2] * s2)*Fa/(Fb*Fb)
+            dFds2 = (2.0 * params[0] - 6.0 * params[2] * s4) / Fb - (
+                2.0 * params[1] + 4.0 * params[2] * s2
+            ) * Fa / (Fb * Fb)
             dFds2 /= TKF0 * TKF0
 
     elif functional == "LC94":  # \cite{hfofke} (16) # same as PW91
         ss = s / TKF0
         s2 = ss * ss
         s4 = s2 * s2
-        Fa = 1.0 + params[0] * ss * np.arcsinh(params[4] * ss) + (params[1] - params[2] * np.exp(-params[3] * s2)) * s2
+        Fa = (
+            1.0
+            + params[0] * ss * np.arcsinh(params[4] * ss)
+            + (params[1] - params[2] * np.exp(-params[3] * s2)) * s2
+        )
         Fb = 1.0 + params[0] * ss * np.arcsinh(params[4] * ss) + params[5] * s4
         F = Fa / Fb
         if "V" in calcType:
             Fa_s = (
-                    params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
-                    + params[0] * np.arcsinh(params[4] * ss)
-                    + 2.0
-                    * ss
-                    * (
-                            params[1]
-                            + 2.0 * params[2] * params[3] * s2 * np.exp(-params[3] * s2)
-                            - 2.0 * params[2] * np.exp(-params[3] * s2)
-                    )
+                params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
+                + params[0] * np.arcsinh(params[4] * ss)
+                + 2.0
+                * ss
+                * (
+                    params[1]
+                    + 2.0 * params[2] * params[3] * s2 * np.exp(-params[3] * s2)
+                    - 2.0 * params[2] * np.exp(-params[3] * s2)
+                )
             )
 
             dFds2 = Fa_s / Fb - Fa / (Fb * Fb) * (
-                    params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
-                    + (params[0] * np.arcsinh(params[4] * ss) + 4.0 * params[5] * s2 * ss)
+                params[0] * params[4] * ss / np.sqrt(params[4] ** 2 * s2 + 1)
+                + (params[0] * np.arcsinh(params[4] * ss) + 4.0 * params[5] * s2 * ss)
             )
 
             mask = s > tol2
@@ -1054,18 +1246,26 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         s2[s2 < tol2] = tol2
         s4 = s2 * s2
         F = (
-                1.0
-                + 5.0 / 3.0 * s2
-                + params[0] * s2 * np.exp(-params[1] * s2) / (1 + params[0] * s2)
-                + (1 - np.exp(-params[1] * s4)) * (1.0 / s2 - 1.0)
+            1.0
+            + 5.0 / 3.0 * s2
+            + params[0] * s2 * np.exp(-params[1] * s2) / (1 + params[0] * s2)
+            + (1 - np.exp(-params[1] * s4)) * (1.0 / s2 - 1.0)
         )
         if "V" in calcType:
             dFds2 = (
-                    10.0 / 3.0
-                    + 2.0 * params[0] * np.exp(-params[1] * s2) * (1.0 - params[1] * s2) / (1 + params[0] * s2)
-                    - 2.0 * params[0] * s2 * np.exp(-params[1] * s2) / (1 + params[0] * s2) ** 2
-                    + 4.0 * params[1] * s2 * (1.0 / s2 - 1.0) * np.exp(-params[1] * s4)
-                    - 2.0 * (1 - np.exp(-params[1] * s4)) / (s4)
+                10.0 / 3.0
+                + 2.0
+                * params[0]
+                * np.exp(-params[1] * s2)
+                * (1.0 - params[1] * s2)
+                / (1 + params[0] * s2)
+                - 2.0
+                * params[0]
+                * s2
+                * np.exp(-params[1] * s2)
+                / (1 + params[0] * s2) ** 2
+                + 4.0 * params[1] * s2 * (1.0 / s2 - 1.0) * np.exp(-params[1] * s4)
+                - 2.0 * (1 - np.exp(-params[1] * s4)) / (s4)
             )
 
             dFds2 /= TKF0 * TKF0
@@ -1088,9 +1288,9 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         F = Fa / Fb + 5.0 / 3.0 * s2
         if "V" in calcType:
             dFds2 = (
-                    (2.0 * coef[1] + 4.0 * coef[2] * s2) / Fb
-                    - Fa * (2 * coef[3] + 4 * coef[4] * s2 + 6 * coef[5] * s4) / (Fb * Fb)
-                    + 10.0 / 3.0
+                (2.0 * coef[1] + 4.0 * coef[2] * s2) / Fb
+                - Fa * (2 * coef[3] + 4 * coef[4] * s2 + 6 * coef[5] * s4) / (Fb * Fb)
+                + 10.0 / 3.0
             )
             dFds2 /= TKF0 * TKF0
 
@@ -1113,9 +1313,9 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         F = Fa / Fb + 5.0 / 3.0 * s2 * ms
         if "V" in calcType:
             dFds2 = (
-                    (2.0 * coef[1] + 4.0 * coef[2] * s2) / Fb
-                    - Fa * (2 * coef[3] + 4 * coef[4] * s2 + 6 * coef[5] * s4) / (Fb * Fb)
-                    + 10.0 / 3.0 * (ms - alpha * s2 * ms * ms)
+                (2.0 * coef[1] + 4.0 * coef[2] * s2) / Fb
+                - Fa * (2 * coef[3] + 4 * coef[4] * s2 + 6 * coef[5] * s4) / (Fb * Fb)
+                + 10.0 / 3.0 * (ms - alpha * s2 * ms * ms)
             )
             dFds2 /= TKF0 * TKF0
 
@@ -1127,8 +1327,10 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         # mask1 = np.invert(mask)
         if "V" in calcType:
             dFds2[:] = 10.0 / 3.0
-            dFds2[mask] += 2 / np.sqrt(np.pi) * np.exp(-(s2[mask] / params[0]) ** 2) / ss[mask]
-            dFds2 /= TKF0 ** 2
+            dFds2[mask] += (
+                2 / np.sqrt(np.pi) * np.exp(-((s2[mask] / params[0]) ** 2)) / ss[mask]
+            )
+            dFds2 /= TKF0**2
 
     elif functional == "TF":
         F = np.ones_like(s)
@@ -1140,7 +1342,7 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         F = 5.0 / 3.0 * params[0] * s2
         if "V" in calcType:
             dFds2[:] = 10.0 / 3.0 * params[0]
-            dFds2 /= TKF0 ** 2
+            dFds2 /= TKF0**2
 
     elif functional == "X_TF_Y_VW" or functional == "TFVW":
         ss = s / TKF0
@@ -1148,7 +1350,7 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         F = params[0] + 5.0 / 3.0 * params[1] * s2
         if "V" in calcType:
             dFds2[:] = 10.0 / 3.0 * params[1]
-            dFds2 /= TKF0 ** 2
+            dFds2 /= TKF0**2
 
     elif functional == "STV":
         ss = s / TKF0
@@ -1156,8 +1358,10 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         Fb = params[3] + params[2] * s2
         F = params[0] + 5.0 / 3.0 * params[1] * s2 / Fb
         if "V" in calcType:
-            dFds2[:] = 5.0 / 3.0 * params[1] * (2.0 / Fb - 2.0 * s2 * params[2] / (Fb * Fb))
-            dFds2 /= TKF0 ** 2
+            dFds2[:] = (
+                5.0 / 3.0 * params[1] * (2.0 / Fb - 2.0 * s2 * params[2] / (Fb * Fb))
+            )
+            dFds2 /= TKF0**2
 
     elif functional == "PBE2M":  #
         ss = s / TKF0
@@ -1203,14 +1407,23 @@ def GGAFs(s, functional="LKT", calcType={"E", "V"}, params=None, gga_remove_vw=N
         s2 = ss * ss
         F -= 5.0 / 3.0 * s2 * pa
         if "V" in calcType:
-            dFds2 -= 10.0 / 3.0 / TKF0 ** 2 * pa
+            dFds2 -= 10.0 / 3.0 / TKF0**2 * pa
 
     return F, dFds2
 
 
 @timer()
-def GGA(rho: DirectField, functional: str = "LKT", calcType: Set[str] = {"E", "V"}, split: bool = False, params=None,
-        sigma=None, gga_remove_vw=None, mgga = False, **kwargs):
+def GGA(
+    rho: DirectField,
+    functional: str = "LKT",
+    calcType: Set[str] = {"E", "V"},
+    split: bool = False,
+    params=None,
+    sigma=None,
+    gga_remove_vw=None,
+    mgga=False,
+    **kwargs,
+):
     """
     Interface to compute GGAs internally to DFTpy.
     This is the default way, even though DFTpy can generate some of the GGAs with LibXC.
@@ -1223,14 +1436,14 @@ def GGA(rho: DirectField, functional: str = "LKT", calcType: Set[str] = {"E", "V
         calcType = list(calcType)
         calcType.extend(['E', 'V'])
     functional = functional.upper()
-    if mgga :
-        if functional in MGGA_KEDF_list :
+    if mgga:
+        if functional in MGGA_KEDF_list:
             Fs_dict = MGGA_KEDF_list[functional]
-        else :
+        else:
             raise AttributeError("%s MGGA KEDF to be implemented" % functional)
-    elif functional in GGA_KEDF_list :
+    elif functional in GGA_KEDF_list:
         Fs_dict = GGA_KEDF_list[functional]
-    else :
+    else:
         raise AttributeError("%s GGA KEDF to be implemented" % functional)
     #
     rhom = rho.copy()
@@ -1248,14 +1461,19 @@ def GGA(rho: DirectField, functional: str = "LKT", calcType: Set[str] = {"E", "V
     else:
         gradient_flag = 'supersmooth'
     rhoGrad = rho.gradient(flag=gradient_flag, force_real=True, sigma=sigma)
-    s = np.sqrt(PowerInt(rhoGrad[0], 2) + PowerInt(rhoGrad[1], 2) + PowerInt(rhoGrad[2], 2)) / rho43
+    s = (
+        np.sqrt(
+            PowerInt(rhoGrad[0], 2) + PowerInt(rhoGrad[1], 2) + PowerInt(rhoGrad[2], 2)
+        )
+        / rho43
+    )
     s[s < tol] = tol
 
-    if mgga :
-        q = rho.laplacian(force_real=True, sigma=sigma)/(TKF0**2) / rho53
-        dq0 = -5.0/3.0 * q/rhom
-        dq2 = 1.0/(TKF0**2) / rho53
-    else :
+    if mgga:
+        q = rho.laplacian(force_real=True, sigma=sigma) / (TKF0**2) / rho53
+        dq0 = -5.0 / 3.0 * q / rhom
+        dq2 = 1.0 / (TKF0**2) / rho53
+    else:
         q = None
 
     if params is None:
@@ -1302,33 +1520,53 @@ def GGA(rho: DirectField, functional: str = "LKT", calcType: Set[str] = {"E", "V
         pot3G = g[0] * p3[0] + g[1] * p3[1] + g[2] * p3[2]
         pot = pot1 - (1j * pot3G).ifft(force_real=True)
 
-        if mgga :
+        if mgga:
             pot += tf * results['dFdq'] * dq0
             pot_q2 = tf * results['dFdq'] * dq2
-            pot += pot_q2.laplacian(force_real = True, sigma = sigma)
+            pot += pot_q2.laplacian(force_real=True, sigma=sigma)
 
         OutFunctional.potential = pot
 
     if 'S' in calcType:
-        if mgga :
+        if mgga:
             raise AttributeError("Stress not support MGGA yet")
-        stress = np.zeros((3,3))
+        stress = np.zeros((3, 3))
         vkin2 = tf * results['dFds2'] / rho83
-        p = OutFunctional.energy  - (pot1 * rho).sum() * rho.grid.dV
+        p = OutFunctional.energy - (pot1 * rho).sum() * rho.grid.dV
         for i in range(3):
             p -= (rhoGrad[i] * rhoGrad[i] * vkin2).sum() * rho.grid.dV
         for i in range(3):
-            stress[i,i] = p
+            stress[i, i] = p
             for j in range(i, 3):
                 stress[i, j] -= (vkin2 * rhoGrad[i] * rhoGrad[j]).sum() * rho.grid.dV
                 stress[j, i] = stress[i, j]
-        OutFunctional.stress = stress/rho.grid.volume
+        OutFunctional.stress = stress / rho.grid.volume
     return OutFunctional
 
-def MGGA(rho: DirectField, functional: str = "LKT", calcType: Set[str] = {"E", "V"}, split: bool = False, params=None,
-        sigma=None, gga_remove_vw=None, mgga = True, **kwargs):
-    return GGA(rho, functional=functional, calcType=calcType, split=split, params=params, sigma=sigma,
-            gga_remove_vw=gga_remove_vw, mgga = True, **kwargs)
+
+def MGGA(
+    rho: DirectField,
+    functional: str = "LKT",
+    calcType: Set[str] = {"E", "V"},
+    split: bool = False,
+    params=None,
+    sigma=None,
+    gga_remove_vw=None,
+    mgga=True,
+    **kwargs,
+):
+    return GGA(
+        rho,
+        functional=functional,
+        calcType=calcType,
+        split=split,
+        params=params,
+        sigma=sigma,
+        gga_remove_vw=gga_remove_vw,
+        mgga=True,
+        **kwargs,
+    )
+
 
 def GGAStress(rho, energy=None, calcType={'S'}, **kwargs):
     obj = GGA(rho, calcType=calcType, energy=energy, **kwargs)

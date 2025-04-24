@@ -1,26 +1,25 @@
 import os
+import re
 from abc import abstractmethod
 
 import numpy as np
 import scipy.special as sp
-from scipy.interpolate import splrep, splev
-import re
+from scipy.interpolate import splev, splrep
 
 from dftpy.ewald import CBspline, ewald
-from dftpy.field import ReciprocalField, DirectField
+from dftpy.field import DirectField, ReciprocalField
 from dftpy.functional.abstract_functional import AbstractFunctional
 from dftpy.functional.functional_output import FunctionalOutput
-from dftpy.grid import DirectGrid, RadialGrid
-from dftpy.math_utils import quartic_interpolation
-from dftpy.mpi import sprint, SerialComm, MP
-from dftpy.time_data import timer
-
 from dftpy.functional.pseudo.abstract_pseudo import BasePseudo
 from dftpy.functional.pseudo.psp import PSP
 from dftpy.functional.pseudo.recpot import RECPOT
 from dftpy.functional.pseudo.upf import UPF
 from dftpy.functional.pseudo.usp import USP
 from dftpy.functional.pseudo.xml import PAWXML
+from dftpy.grid import DirectGrid, RadialGrid
+from dftpy.math_utils import quartic_interpolation
+from dftpy.mpi import MP, SerialComm, sprint
+from dftpy.time_data import timer
 
 
 # NEVER TOUCH THIS CLASS
@@ -77,19 +76,29 @@ class LocalPseudo(AbstractLocalPseudo):
     This is a template class and should never be touched.
     """
 
-    def __init__(self, grid=None, ions=None, PP_list=None, PME=True, readpp = None, comm = None, BsplineOrder = 10, **kwargs):
+    def __init__(
+        self,
+        grid=None,
+        ions=None,
+        PP_list=None,
+        PME=True,
+        readpp=None,
+        comm=None,
+        BsplineOrder=10,
+        **kwargs,
+    ):
 
         self.type = 'PSEUDO'
         self.name = 'PSEUDO'
 
         if comm is None:
-            if grid is not None :
+            if grid is not None:
                 comm = grid.mp.comm
-            else :
+            else:
                 comm = SerialComm()
 
         # Read PP first, then initialize other variables.
-        if readpp is not None :
+        if readpp is not None:
             self.readpp = readpp
         elif PP_list is not None:
             self.readpp = ReadPseudo(PP_list, comm=comm, **kwargs)
@@ -99,7 +108,7 @@ class LocalPseudo(AbstractLocalPseudo):
         self.PME = PME
         self.BsplineOrder = BsplineOrder
         # if not PME :
-            # sprint("Using N^2 method for strf!", comm=comm)
+        # sprint("Using N^2 method for strf!", comm=comm)
         self.restart(grid, ions)
 
     @property
@@ -132,7 +141,7 @@ class LocalPseudo(AbstractLocalPseudo):
 
     @property
     def core_density(self):
-        if self._core_density is None :
+        if self._core_density is None:
             self._core_density = {}
             reciprocal_grid = self.grid.get_reciprocal()
             q = reciprocal_grid.q
@@ -140,10 +149,13 @@ class LocalPseudo(AbstractLocalPseudo):
             for key in sorted(self.vloc_interp_core):
                 for i in range(len(self.ions.positions)):
                     if self.ions.symbols[i] == key:
-                        if self.vlines_core[key] is None : continue
+                        if self.vlines_core[key] is None:
+                            continue
                         strf = self.ions.strf(reciprocal_grid, i)
                         v += self.vlines_core[key] * strf
-            self._core_density = ReciprocalField(reciprocal_grid, griddata_3d=v).ifft(force_real=True)
+            self._core_density = ReciprocalField(reciprocal_grid, griddata_3d=v).ifft(
+                force_real=True
+            )
         return self._core_density
 
     def __repr__(self):
@@ -155,8 +167,8 @@ class LocalPseudo(AbstractLocalPseudo):
         This will prompt the computation of a new pseudo
         without recomputing the local pp on the atoms.
         """
-        if duplicate :
-            pseudo = self.__class__(grid = grid, ions = ions, readpp = self.readpp)
+        if duplicate:
+            pseudo = self.__class__(grid=grid, ions=ions, readpp=self.readpp)
             return pseudo
 
         self._vlines = {}  # PP for each atomic species on 3D PW grid
@@ -197,23 +209,30 @@ class LocalPseudo(AbstractLocalPseudo):
 
     @ions.setter
     def ions(self, value):
-        for key in value.symbols_uniq :
+        for key in value.symbols_uniq:
             if key not in self.PP_list:
-                raise ValueError("There is no pseudopotential for {:4s} atom".format(key))
+                raise ValueError(
+                    "There is no pseudopotential for {:4s} atom".format(key)
+                )
         self._ions = value
         # update zval in ions
         self._ions.set_charges(self.zval)
 
     @property
     def Bspline(self):
-        if self._Bspline is None :
-            self._Bspline = CBspline(ions=self.ions, grid=self.grid, order=self.BsplineOrder)
+        if self._Bspline is None:
+            self._Bspline = CBspline(
+                ions=self.ions, grid=self.grid, order=self.BsplineOrder
+            )
         return self._Bspline
 
-    def get_ewald(self, PME = None):
-        if self.ewald is None :
-            if PME is None : PME = self.PME
-            self.ewald = ewald(ions=self.ions, grid = self.grid, PME=PME, Bspline = self.Bspline)
+    def get_ewald(self, PME=None):
+        if self.ewald is None:
+            if PME is None:
+                PME = self.PME
+            self.ewald = ewald(
+                ions=self.ions, grid=self.grid, PME=PME, Bspline=self.Bspline
+            )
         return self.ewald
 
     def compute(self, density, calcType={"E", "V"}, **kwargs):
@@ -235,8 +254,7 @@ class LocalPseudo(AbstractLocalPseudo):
 
     @timer()
     def local_PP(self):
-        """
-        """
+        """ """
         if self._v is None:
             if self.PME:
                 self._PP_Reciprocal_PME()
@@ -269,19 +287,21 @@ class LocalPseudo(AbstractLocalPseudo):
             f = self._Force(rho)
         return f
 
-    def calc_force_cc(self, potential = None, rhod = None, ions = None):
+    def calc_force_cc(self, potential=None, rhod=None, ions=None):
         """Calculate the correction forces
 
         Parameters
         ----------
         potential : field
             Potential in real space.
-        rhod :
+        rhod
             density of each element in reciprocal space
         """
         #
-        if rhod is None : rhod = self.vlines_core
-        if ions is None : ions = self.ions
+        if rhod is None:
+            rhod = self.vlines_core
+        if ions is None:
+            ions = self.ions
         grid = potential.grid
         #
         reciprocal_grid = grid.get_reciprocal()
@@ -289,18 +309,20 @@ class LocalPseudo(AbstractLocalPseudo):
         mask = reciprocal_grid.mask
         g = reciprocal_grid.g
 
-        if potential.rank == 2 : potential = 0.5*(potential[0]+potential[1])
+        if potential.rank == 2:
+            potential = 0.5 * (potential[0] + potential[1])
         potg = potential.fft()
 
         for key in sorted(ions.zval):
-                rhocg = rhod[key]
-                if rhocg is None : continue
-                for i in range(ions.nat):
-                    if ions.symbols[i] == key:
-                        strf = ions.istrf(reciprocal_grid, i)
-                        den = (potg[mask] * rhocg[mask] * strf[mask]).imag
-                        for j in range(3):
-                            forces[i, j] = np.einsum("i, i->", g[j][mask], den)
+            rhocg = rhod[key]
+            if rhocg is None:
+                continue
+            for i in range(ions.nat):
+                if ions.symbols[i] == key:
+                    strf = ions.istrf(reciprocal_grid, i)
+                    den = (potg[mask] * rhocg[mask] * strf[mask]).imag
+                    for j in range(3):
+                        forces[i, j] = np.einsum("i, i->", g[j][mask], den)
         forces *= 2.0 / grid.volume
         return forces
 
@@ -313,16 +335,19 @@ class LocalPseudo(AbstractLocalPseudo):
             symbols = sorted(self._gp)
         for key in symbols:
             interp = self.vloc_interp_core[key]
-            if interp is None: continue
+            if interp is None:
+                continue
             deriv[:] = 0.0
-            deriv[q < np.max(self._gp[key])] = splev(q[q < np.max(self._gp[key])], interp, der=1)
+            deriv[q < np.max(self._gp[key])] = splev(
+                q[q < np.max(self._gp[key])], interp, der=1
+            )
             for i in range(len(self.ions.positions)):
                 if self.ions.symbols[i] == key:
                     strf = self.ions.strf(reciprocal_grid, i)
                     v += deriv * np.conjugate(strf)
         return v
 
-    def calc_stress_cc(self, potential = None, ions=None, rhodd=None):
+    def calc_stress_cc(self, potential=None, ions=None, rhodd=None):
         """Calculate the correction stress
 
         Parameters
@@ -331,8 +356,10 @@ class LocalPseudo(AbstractLocalPseudo):
             Potential in real space.
         """
         #
-        if ions is None : ions = self.ions
-        if rhodd is None: rhodd = self._deriv_drho_core()
+        if ions is None:
+            ions = self.ions
+        if rhodd is None:
+            rhodd = self._deriv_drho_core()
         grid = potential.grid
         #
         reciprocal_grid = grid.get_reciprocal()
@@ -340,15 +367,16 @@ class LocalPseudo(AbstractLocalPseudo):
         g = reciprocal_grid.g
         invq = reciprocal_grid.invq
 
-        if potential.rank == 2 : potential = 0.5*(potential[0]+potential[1])
+        if potential.rank == 2:
+            potential = 0.5 * (potential[0] + potential[1])
         potg = potential.fft()
         potrhodd = potg * rhodd * invq
 
-        stress = np.zeros((3,3))
+        stress = np.zeros((3, 3))
         for i in range(3):
             for j in range(i, 3):
                 den = (g[i] * g[j]) * potrhodd
-                stress[i,j] -= den[mask].sum().real / grid.volume * 2.0
+                stress[i, j] -= den[mask].sum().real / grid.volume * 2.0
                 stress[j, i] = stress[i, j]
         return stress / grid.volume
 
@@ -384,15 +412,21 @@ class LocalPseudo(AbstractLocalPseudo):
     @property
     def vlines_core(self):
         if not self._vlines_core:
-            self._vlines_core = self.calc_vlines(self.readpp._core_density_grid, self.readpp._core_density,
-                    self.vloc_interp_core)
+            self._vlines_core = self.calc_vlines(
+                self.readpp._core_density_grid,
+                self.readpp._core_density,
+                self.vloc_interp_core,
+            )
         return self._vlines_core
 
     @property
     def vlines_atomic(self):
         if not self._vlines_atomic:
-            self._vlines_atomic = self.calc_vlines(self.readpp._atomic_density_grid, self.readpp._atomic_density,
-                    self.vloc_interp_atomic)
+            self._vlines_atomic = self.calc_vlines(
+                self.readpp._atomic_density_grid,
+                self.readpp._atomic_density,
+                self.vloc_interp_atomic,
+            )
         return self._vlines_atomic
 
     def calc_vlines(self, gps, vps, interps):
@@ -402,13 +436,13 @@ class LocalPseudo(AbstractLocalPseudo):
         vloc = np.empty_like(q)
         for key in sorted(interps):
             interp = interps[key]
-            if interp is None :
+            if interp is None:
                 vlines[key] = None
                 continue
             vloc[:] = 0.0
             mask = q < gps[key][-1]
             qmask = q[mask]
-            if len(qmask)>0 :
+            if len(qmask) > 0:
                 vloc[mask] = splev(qmask, interp, der=0)
             # quartic interpolation for small q
             # -----------------------------------------------------------------------
@@ -439,7 +473,7 @@ class LocalPseudo(AbstractLocalPseudo):
         q = reciprocal_grid.q
         v = np.zeros_like(q, dtype=np.complex128)
         QA = np.empty(self.grid.nr)
-        scaled_positions=self.ions.get_scaled_positions()
+        scaled_positions = self.ions.get_scaled_positions()
         for key in sorted(self._vloc_interp):
             QA[:] = 0.0
             for i in range(len(self.ions.positions)):
@@ -456,7 +490,9 @@ class LocalPseudo(AbstractLocalPseudo):
         q = reciprocal_grid.q
         vloc_interp = self._vloc_interp[key]
         vloc_deriv = np.zeros(np.shape(q))
-        vloc_deriv[q < np.max(self._gp[key])] = splev(q[q < np.max(self._gp[key])], vloc_interp, der=1)
+        vloc_deriv[q < np.max(self._gp[key])] = splev(
+            q[q < np.max(self._gp[key])], vloc_interp, der=1
+        )
         return ReciprocalField(reciprocal_grid, griddata_3d=vloc_deriv)
 
     def _PP_Derivative(self, symbols=None):
@@ -469,7 +505,9 @@ class LocalPseudo(AbstractLocalPseudo):
         for key in symbols:
             vloc_interp = self._vloc_interp[key]
             vloc_deriv[:] = 0.0
-            vloc_deriv[q < np.max(self._gp[key])] = splev(q[q < np.max(self._gp[key])], vloc_interp, der=1)
+            vloc_deriv[q < np.max(self._gp[key])] = splev(
+                q[q < np.max(self._gp[key])], vloc_interp, der=1
+            )
             for i in range(len(self.ions.positions)):
                 if self.ions.symbols[i] == key:
                     strf = self.ions.strf(reciprocal_grid, i)
@@ -496,7 +534,9 @@ class LocalPseudo(AbstractLocalPseudo):
                 # den = (g[i]*g[j])[np.newaxis] * rhoGV_q
                 # stress[i, j] = (np.einsum('ijk->', den)).real / rho.grid.volume
                 den = (g[i][mask] * g[j][mask]) * rhoGV_q[mask]
-                stress[i, j] = stress[j, i] = -(np.einsum("i->", den)).real / self.grid.volume * 2.0
+                stress[i, j] = stress[j, i] = (
+                    -(np.einsum("i->", den)).real / self.grid.volume * 2.0
+                )
                 if i == j:
                     stress[i, j] -= energy
         stress /= self.grid.volume
@@ -514,7 +554,9 @@ class LocalPseudo(AbstractLocalPseudo):
         mask = reciprocal_grid.mask
         for i in range(self.ions.nat):
             strf = self.ions.istrf(reciprocal_grid, i)
-            den = self.vlines[self.ions.symbols[i]][mask] * (rhoG[mask] * strf[mask]).imag
+            den = (
+                self.vlines[self.ions.symbols[i]][mask] * (rhoG[mask] * strf[mask]).imag
+            )
             for j in range(3):
                 Forces[i, j] = np.einsum("i, i->", g[j][mask], den)
         Forces *= 2.0 / self.grid.volume
@@ -535,12 +577,16 @@ class LocalPseudo(AbstractLocalPseudo):
         # cell_inv = np.linalg.inv(self.ions.positions[0].cell.lattice)
         cell_inv = reciprocal_grid.lattice.T / 2 / np.pi
         Forces = np.zeros((self.ions.nat, 3))
-        ixyzA = np.mgrid[: self.BsplineOrder, : self.BsplineOrder, : self.BsplineOrder].reshape((3, -1))
-        Q_derivativeA = np.zeros((3, self.BsplineOrder * self.BsplineOrder * self.BsplineOrder))
-        scaled_positions=self.ions.get_scaled_positions()
-        for key in self.ions.symbols_uniq :
+        ixyzA = np.mgrid[
+            : self.BsplineOrder, : self.BsplineOrder, : self.BsplineOrder
+        ].reshape((3, -1))
+        Q_derivativeA = np.zeros(
+            (3, self.BsplineOrder * self.BsplineOrder * self.BsplineOrder)
+        )
+        scaled_positions = self.ions.get_scaled_positions()
+        for key in self.ions.symbols_uniq:
             denGV = denG * self.vlines[key]
-            if rho.mp.rank == 0 :
+            if rho.mp.rank == 0:
                 denGV[0, 0, 0] = 0.0 + 0.0j
             rhoPB = denGV.ifft(force_real=True)
             for i in range(self.ions.nat):
@@ -552,22 +598,41 @@ class LocalPseudo(AbstractLocalPseudo):
                     Mn_2 = []
                     for j in range(3):
                         Mn.append(Bspline.calc_Mn(Up[j] - np.floor(Up[j])))
-                        Mn_2.append(Bspline.calc_Mn(Up[j] - np.floor(Up[j]), order=self.BsplineOrder - 1))
+                        Mn_2.append(
+                            Bspline.calc_Mn(
+                                Up[j] - np.floor(Up[j]), order=self.BsplineOrder - 1
+                            )
+                        )
                     Q_derivativeA[0] = nrR[0] * np.einsum(
-                        "i, j, k -> ijk", Mn_2[0][1:] - Mn_2[0][:-1], Mn[1][1:], Mn[2][1:]
+                        "i, j, k -> ijk",
+                        Mn_2[0][1:] - Mn_2[0][:-1],
+                        Mn[1][1:],
+                        Mn[2][1:],
                     ).reshape(-1)
                     Q_derivativeA[1] = nrR[1] * np.einsum(
-                        "i, j, k -> ijk", Mn[0][1:], Mn_2[1][1:] - Mn_2[1][:-1], Mn[2][1:]
+                        "i, j, k -> ijk",
+                        Mn[0][1:],
+                        Mn_2[1][1:] - Mn_2[1][:-1],
+                        Mn[2][1:],
                     ).reshape(-1)
                     Q_derivativeA[2] = nrR[2] * np.einsum(
-                        "i, j, k -> ijk", Mn[0][1:], Mn[1][1:], Mn_2[2][1:] - Mn_2[2][:-1]
+                        "i, j, k -> ijk",
+                        Mn[0][1:],
+                        Mn[1][1:],
+                        Mn_2[2][1:] - Mn_2[2][:-1],
                     ).reshape(-1)
-                    l123A = np.mod(1 + np.floor(Up).astype(np.int32).reshape((3, 1)) - ixyzA, nrR.reshape((3, 1)))
+                    l123A = np.mod(
+                        1 + np.floor(Up).astype(np.int32).reshape((3, 1)) - ixyzA,
+                        nrR.reshape((3, 1)),
+                    )
                     mask = self.Bspline.get_Qarray_mask(l123A)
-                    Forces[i] = -np.sum(np.matmul(Q_derivativeA.T, cell_inv)[mask] * rhoPB[
-                                                                                         l123A[0][mask], l123A[1][mask],
-                                                                                         l123A[2][mask]][:, np.newaxis],
-                                        axis=0)
+                    Forces[i] = -np.sum(
+                        np.matmul(Q_derivativeA.T, cell_inv)[mask]
+                        * rhoPB[l123A[0][mask], l123A[1][mask], l123A[2][mask]][
+                            :, np.newaxis
+                        ],
+                        axis=0,
+                    )
         return Forces
 
     def _StressPME(self, density, energy=None):
@@ -589,8 +654,8 @@ class LocalPseudo(AbstractLocalPseudo):
         nr = self.grid.nr
         stress = np.zeros((3, 3))
         QA = np.empty(nr)
-        scaled_positions=self.ions.get_scaled_positions()
-        for key in self.ions.symbols_uniq :
+        scaled_positions = self.ions.get_scaled_positions()
+        for key in self.ions.symbols_uniq:
             rhoGBV = rhoGB * self._PP_Derivative_One(key=key)
             QA[:] = 0.0
             for i in range(self.ions.nat):
@@ -601,7 +666,7 @@ class LocalPseudo(AbstractLocalPseudo):
             for i in range(3):
                 for j in range(i, 3):
                     den = (g[i][mask] * g[j][mask]) * rhoGBV[mask] * invq[mask]
-                    stress[i, j] -= (np.einsum("i->", den)).real / self.grid.volume ** 2
+                    stress[i, j] -= (np.einsum("i->", den)).real / self.grid.volume**2
         stress *= 2.0 * self.grid.nnrR
         for i in range(3):
             for j in range(i, 3):
@@ -612,19 +677,19 @@ class LocalPseudo(AbstractLocalPseudo):
 
 
 PPEngines = {
-            "recpot" : RECPOT,
-            "usp"    : USP,
-            "uspcc"  : USP,
-            "uspso"  : USP,
-            "upf"    : UPF,
-            "psp"    : PSP,
-            "psp8"   : PSP,
-            "lps"    : PSP,
-            "psp6"   : PSP,
-            "fhi"    : PSP,
-            "cpi"    : PSP,
-            "xml"    : PAWXML,
-        }
+    "recpot": RECPOT,
+    "usp": USP,
+    "uspcc": USP,
+    "uspso": USP,
+    "upf": UPF,
+    "psp": PSP,
+    "psp8": PSP,
+    "lps": PSP,
+    "psp6": PSP,
+    "fhi": PSP,
+    "cpi": PSP,
+    "xml": PAWXML,
+}
 
 
 class ReadPseudo(object):
@@ -632,7 +697,7 @@ class ReadPseudo(object):
     Support class for LocalPseudo.
     """
 
-    def __init__(self, PP_list=None, comm=None, parallel = True, gp=None, **kwargs):
+    def __init__(self, PP_list=None, comm=None, parallel=True, gp=None, **kwargs):
         self._gp = {}  # 1D PP grid g-space
         self._vp = {}  # PP on 1D PP grid
         self._r = {}  # 1D PP grid r-space
@@ -642,9 +707,13 @@ class ReadPseudo(object):
         self._vloc_interp_core = {}  # Interpolates core density
         self._vloc_interp_atomic = {}  # Interpolates atomic density
         self._core_density_grid = {}
-        self._core_density = {}  # the radial core charge density for the non-linear core correction in g-space
+        self._core_density = (
+            {}
+        )  # the radial core charge density for the non-linear core correction in g-space
         self._core_density_grid_real = {}
-        self._core_density_real = {}  # the radial core charge density for the non-linear core correction in real space
+        self._core_density_real = (
+            {}
+        )  # the radial core charge density for the non-linear core correction in real space
         self._atomic_density_grid = {}
         self._atomic_density = {}  # the radial atomic charge density in g-space
         self._atomic_density_grid_real = {}
@@ -654,21 +723,24 @@ class ReadPseudo(object):
         self._input_gp = gp
 
         self.PP_list = PP_list
-        #-----------------------------------------------------------------------
-        if comm is None: comm = SerialComm()
+        # -----------------------------------------------------------------------
+        if comm is None:
+            comm = SerialComm()
         self.comm = comm
         self.parallel = parallel and comm.size > 1
-        #-----------------------------------------------------------------------
+        # -----------------------------------------------------------------------
 
         for key, fname in self.PP_list.items():
-            sprint("setting key: {} -> {}".format(key, fname), comm=comm, level = 2)
+            sprint("setting key: {} -> {}".format(key, fname), comm=comm, level=2)
             if isinstance(fname, BasePseudo):
                 engine = fname
-                self._init_pp(key, engine = engine, **kwargs)
-            else :
+                self._init_pp(key, engine=engine, **kwargs)
+            else:
                 if not os.path.isfile(fname):
-                    raise FileNotFoundError("'{}' PP file for atom type {} not found".format(fname, key))
-                self._init_pp(key, fname = fname, **kwargs)
+                    raise FileNotFoundError(
+                        "'{}' PP file for atom type {} not found".format(fname, key)
+                    )
+                self._init_pp(key, fname=fname, **kwargs)
             self.get_vloc_interp(key)
 
     @property
@@ -680,7 +752,7 @@ class ReadPseudo(object):
         if isinstance(value, (list, tuple)):
             dicts = {}
             pattern = re.compile(r'[._@-]')
-            for item in value :
+            for item in value:
                 k = pattern.split(os.path.basename(item))[0]
                 dicts[k.capitalize()] = item
             value = dicts
@@ -695,53 +767,82 @@ class ReadPseudo(object):
         """
         vloc_interp = splrep(self._gp[key][1:], self._vp[key][1:], k=k)
         self._vloc_interp[key] = vloc_interp
-        if self._core_density[key] is not None :
-            self._vloc_interp_core[key] = splrep(self._core_density_grid[key][1:], self._core_density[key][1:], k=k)
-        else :
+        if self._core_density[key] is not None:
+            self._vloc_interp_core[key] = splrep(
+                self._core_density_grid[key][1:], self._core_density[key][1:], k=k
+            )
+        else:
             self._vloc_interp_core[key] = None
 
-        if self._atomic_density[key] is not None :
-            self._vloc_interp_atomic[key] = splrep(self._atomic_density_grid[key][1:], self._atomic_density[key][1:], k=k)
-        else :
+        if self._atomic_density[key] is not None:
+            self._vloc_interp_atomic[key] = splrep(
+                self._atomic_density_grid[key][1:], self._atomic_density[key][1:], k=k
+            )
+        else:
             self._vloc_interp_atomic[key] = None
 
     @staticmethod
-    def _real2recip(r, v, zval=0, MaxPoints=10000, Gmax=30, Gmin=1E-4, gp=None, rcut=None, comm=None, **kwargs):
-        if gp is None :
+    def _real2recip(
+        r,
+        v,
+        zval=0,
+        MaxPoints=10000,
+        Gmax=30,
+        Gmin=1e-4,
+        gp=None,
+        rcut=None,
+        comm=None,
+        **kwargs,
+    ):
+        if gp is None:
             gp = np.logspace(np.log10(Gmin), np.log10(Gmax), num=MaxPoints)
             gp[0] = 0.0
         #
-        if rcut :
-            mk = r < rcut + 1E-6
-        else :
+        if rcut:
+            mk = r < rcut + 1e-6
+        else:
             mk = slice(None)
         #
-        vr = v*r + zval
+        vr = v * r + zval
         #
         vp = RadialGrid(r[mk], vr[mk], direct=True, vr=True, **kwargs).ft(gp, comm=comm)
         vp[1:] -= 4.0 * np.pi * zval / (gp[1:] ** 2)
         return gp, vp
 
     @staticmethod
-    def _real2recip_erf(r, v, zval=0, MaxPoints=10000, Gmax=30, Gmin=1E-4, gp=None, rcut=None, comm=None, **kwargs):
-        if gp is None :
+    def _real2recip_erf(
+        r,
+        v,
+        zval=0,
+        MaxPoints=10000,
+        Gmax=30,
+        Gmin=1e-4,
+        gp=None,
+        rcut=None,
+        comm=None,
+        **kwargs,
+    ):
+        if gp is None:
             gp = np.logspace(np.log10(Gmin), np.log10(Gmax), num=MaxPoints)
             gp[0] = 0.0
         #
-        if rcut :
-            mk = r < rcut + 1E-6
-        else :
+        if rcut:
+            mk = r < rcut + 1e-6
+        else:
             mk = slice(None)
         #
-        vr = v*r + zval
+        vr = v * r + zval
         vp = np.zeros_like(gp)
         #
         from scipy.integrate import simpson as integrate
-        vp[0] = (4.0 * np.pi) * integrate((vr[mk]*r[mk]), x=r[mk])
+
+        vp[0] = (4.0 * np.pi) * integrate((vr[mk] * r[mk]), x=r[mk])
         #
-        vr = v*r + zval*sp.erf(r)
-        vp[1:] = RadialGrid(r[mk], vr[mk], direct=True, vr=True, **kwargs).ft(gp[1:], comm=comm)
-        vp[1:] -= 4.0 * np.pi * zval * np.exp(-gp[1:]**2/4.0) / (gp[1:] ** 2)
+        vr = v * r + zval * sp.erf(r)
+        vp[1:] = RadialGrid(r[mk], vr[mk], direct=True, vr=True, **kwargs).ft(
+            gp[1:], comm=comm
+        )
+        vp[1:] -= 4.0 * np.pi * zval * np.exp(-gp[1:] ** 2 / 4.0) / (gp[1:] ** 2)
         return gp, vp
 
     @staticmethod
@@ -753,7 +854,8 @@ class ReadPseudo(object):
 
     @staticmethod
     def _vloc2rho(r, v, r2=None):
-        if r2 is None: r2 = r
+        if r2 is None:
+            r2 = r
         tck = splrep(r, v)
         dv1 = splev(r2[1:], tck, der=1)
         dv2 = splev(r2[1:], tck, der=2)
@@ -770,36 +872,36 @@ class ReadPseudo(object):
         # sprint('Ne ', np.sum(r *r * rhop * dr) * 4 * np.pi)
         return ene
 
-    def _init_pp(self, key, fname = None, engine = None, k = 3, **kwargs):
-        """ initialize the pseudopotential
+    def _init_pp(self, key, fname=None, engine=None, k=3, **kwargs):
+        """initialize the pseudopotential
 
         Parameters
         ----------
-        key :
+        key
             The key of pseudopotential, which usually is the symbol of ion.
-        fname :
+        fname
             The name of pseudopotential file
-        engine :
+        engine
             The engine for reading pseudopotential file
-        k :
+        k
             k: The degree of the spline fit of splrep.
-        kwargs :
+        **kwargs
             kwargs
         """
-        if engine is None :
+        if engine is None:
             suffix = os.path.splitext(fname)[1][1:].lower()
             engine = PPEngines.get(suffix, None)
 
-        if engine is None :
+        if engine is None:
             raise AttributeError("Pseudopotential '{}' is not supported".format(fname))
-        else :
-            if self.parallel :
-                if self.comm.rank == 0 :
+        else:
+            if self.parallel:
+                if self.comm.rank == 0:
                     pp = engine(fname)
-                else :
+                else:
                     pp = None
                 pp = self.comm.bcast(pp)
-            else :
+            else:
                 pp = engine(fname)
 
         self._pp[key] = pp
@@ -808,14 +910,14 @@ class ReadPseudo(object):
         self._zval[key] = pp.zval
         self._info[key] = pp.info
         self._core_density[key] = pp.core_density
-        self._core_density_grid[key]= pp.core_density_grid
+        self._core_density_grid[key] = pp.core_density_grid
         self._atomic_density[key] = pp.atomic_density
         self._atomic_density_grid[key] = pp.atomic_density_grid
 
-        if pp.direct :
-            if self.parallel :
+        if pp.direct:
+            if self.parallel:
                 comm = self.comm
-            else :
+            else:
                 comm = None
             if isinstance(self._input_gp, dict):
                 gp = self._input_gp.get(key, None)
@@ -823,13 +925,39 @@ class ReadPseudo(object):
                 gp = self._input_gp
             self._r[key] = self._gp[key]
             self._v[key] = self._vp[key]
-            self._gp[key], self._vp[key] = self._real2recip(self._r[key], self._v[key], self._zval[key], comm=comm, gp=gp, **kwargs)
-            if self._core_density[key] is not None :
-                self._core_density_grid_real[key], self._core_density_real[key] = self._core_density_grid[key], self._core_density[key]
-                self._core_density_grid[key], self._core_density[key] = self._real2recip(self._core_density_grid[key], self._core_density[key], 0, comm=comm, gp=gp, **kwargs)
-            if self._atomic_density[key] is not None :
-                self._atomic_density_grid_real[key], self._atomic_density_real[key] = self._atomic_density_grid[key], self._atomic_density[key]
-                self._atomic_density_grid[key], self._atomic_density[key] = self._real2recip(self._atomic_density_grid[key], self._atomic_density[key], 0, comm=comm, gp=gp, **kwargs)
+            self._gp[key], self._vp[key] = self._real2recip(
+                self._r[key], self._v[key], self._zval[key], comm=comm, gp=gp, **kwargs
+            )
+            if self._core_density[key] is not None:
+                self._core_density_grid_real[key], self._core_density_real[key] = (
+                    self._core_density_grid[key],
+                    self._core_density[key],
+                )
+                self._core_density_grid[key], self._core_density[key] = (
+                    self._real2recip(
+                        self._core_density_grid[key],
+                        self._core_density[key],
+                        0,
+                        comm=comm,
+                        gp=gp,
+                        **kwargs,
+                    )
+                )
+            if self._atomic_density[key] is not None:
+                self._atomic_density_grid_real[key], self._atomic_density_real[key] = (
+                    self._atomic_density_grid[key],
+                    self._atomic_density[key],
+                )
+                self._atomic_density_grid[key], self._atomic_density[key] = (
+                    self._real2recip(
+                        self._atomic_density_grid[key],
+                        self._atomic_density[key],
+                        0,
+                        comm=comm,
+                        gp=gp,
+                        **kwargs,
+                    )
+                )
 
     @property
     def vloc_interp(self):

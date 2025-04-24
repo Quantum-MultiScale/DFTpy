@@ -1,5 +1,6 @@
-from abc import ABC, abstractmethod
 import hashlib
+from abc import ABC, abstractmethod
+
 
 class AbstractPseudo(ABC):
     @abstractmethod
@@ -46,10 +47,11 @@ class AbstractPseudo(ABC):
     def direct(self):
         pass
 
+
 class BasePseudo(AbstractPseudo):
-    def __init__(self, fname = None, direct = True, **kwargs):
+    def __init__(self, fname=None, direct=True, **kwargs):
         self.fname = fname
-        #-----------------------------------------------------------------------
+        # -----------------------------------------------------------------------
         self.r = None
         self.v = None
         self.info = {}
@@ -59,8 +61,8 @@ class BasePseudo(AbstractPseudo):
         self._core_density_grid = None
         self._atomic_density = None
         self._atomic_density_grid = None
-        #-----------------------------------------------------------------------
-        if fname is not None :
+        # -----------------------------------------------------------------------
+        if fname is not None:
             self.read(fname, **kwargs)
             with open(fname, 'rb') as f:
                 md5 = hashlib.md5(f.read()).hexdigest()
@@ -69,7 +71,7 @@ class BasePseudo(AbstractPseudo):
     def read(self, fname, *args, **kwargs):
         pass
 
-    def __call__(self, fname = None, **kwargs):
+    def __call__(self, fname=None, **kwargs):
         return self
 
     @property
@@ -86,9 +88,9 @@ class BasePseudo(AbstractPseudo):
 
     @property
     def core_density_grid(self):
-        if self._core_density_grid is None :
+        if self._core_density_grid is None:
             return self.radial_grid
-        else :
+        else:
             return self._core_density_grid
 
     @property
@@ -97,9 +99,9 @@ class BasePseudo(AbstractPseudo):
 
     @property
     def atomic_density_grid(self):
-        if self._atomic_density_grid is None :
+        if self._atomic_density_grid is None:
             return self.radial_grid
-        else :
+        else:
             return self._atomic_density_grid
 
     @property

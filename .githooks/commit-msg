@@ -1,0 +1,75 @@
+#!/bin/bash
+#
+# An example hook script to check the commit log message.
+# Called by "git commit" with one argument, the name of the file
+# that has the commit message.  The hook should exit with non-zero
+# status after issuing an appropriate message if it wants to stop the
+# commit.  The hook is allowed to edit the commit message file.
+#
+# To enable this hook, rename this file to "commit-msg".
+
+# Uncomment the below to add a Signed-off-by line to the message.
+# Doing this in a hook is a bad idea in general, but the prepare-commit-msg
+# hook is more suited to it.
+#
+# SOB=$(git var GIT_AUTHOR_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
+# grep -qs "^$SOB" "$1" || echo "$SOB" >> "$1"
+
+# This example catches duplicate Signed-off-by lines.
+
+test "" = "$(grep '^Signed-off-by: ' "$1" |
+	 sort | uniq -c | sed -e '/^[ 	]*1[ 	]/d')" || {
+	echo >&2 Duplicate Signed-off-by lines.
+	exit 1
+}
+
+firstline_re="(feat|fix|docs|style|refactor|pref|test|build|ci|chore|revert)(\([a-zA-Z0-9_]+\)){0,1}: .+"
+error_msg="Please write the commit message in the following format:
+--------------------------
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+--------------------------
+
+type:
+  feat:     A new feature
+  fix:      A bug fix
+  docs:     Documentation only changes
+  style:    Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc)
+  refactor: A code change that neither fixes a bug nor adds a feature
+  perf:     A code change that improves performance
+  test:     Adding missing tests or correcting existing tests
+  build:    Changes that affect the build system or external dependencies (example scopes: gulp, broccoli, npm)
+  ci:       Changes to our CI configuration files and scripts (example scopes: Travis, Circle, BrowserStack, SauceLabs)
+  chore:    Other changes that don't modify src or test files
+  revert:   Reverts a previous commit
+scope: optional, the scope involved in this commit
+subject: short description of this commit, use first-person present tense verbs at the beginning, do not capitalize the first letter, and do not use the ending period
+
+followed by an empty line
+
+body: detailed description, should include the modificaiton motivation, and the comparison before and after the modification
+
+Example:
+----------------------------
+docs(README): add README.md
+
+1. add author info
+2. add installation info
+----------------------------"
+
+firstline=`head -n1 "$1"`
+secondline=`sed -n '2p' $1`
+if [[ ! "$firstline" =~ $firstline_re ]] ; then
+    echo "ERROR: first line is not in correct format\n" >&2
+    echo "$error_msg" >&2
+    exit 1
+elif [[ ${#secondline} != 0 ]] ; then
+    echo "ERROR: second line must be empty if exist\n" >&2
+    echo "$error_msg" >&2
+    exit 1
+else
+    exit 0
+fi

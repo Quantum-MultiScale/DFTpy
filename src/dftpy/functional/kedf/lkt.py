@@ -1,16 +1,24 @@
-import numpy as np
 from typing import Set
 
-from dftpy.functional.kedf.vw import vW
-from dftpy.functional.kedf.gga import GGA
+import numpy as np
+
 from dftpy.constants import C_TF, TKF0
-from dftpy.math_utils import PowerInt
-from dftpy.functional.functional_output import FunctionalOutput
 from dftpy.field import DirectField
+from dftpy.functional.functional_output import FunctionalOutput
+from dftpy.functional.kedf.gga import GGA
+from dftpy.functional.kedf.vw import vW
+from dftpy.math_utils import PowerInt
 from dftpy.time_data import timer
 
+
 @timer()
-def LKT(rho: DirectField, calcType: Set[str] = {'E','V'}, params = None, y: float = 1.0, **kwargs) -> FunctionalOutput:
+def LKT(
+    rho: DirectField,
+    calcType: Set[str] = {'E', 'V'},
+    params=None,
+    y: float = 1.0,
+    **kwargs,
+) -> FunctionalOutput:
     '''
     LKT functional
     Parameters
@@ -24,9 +32,12 @@ def LKT(rho: DirectField, calcType: Set[str] = {'E','V'}, params = None, y: floa
     Returns
     -------
 
+
     '''
     kwargs.pop('functional', None)
-    OutFunctional = GGA(rho, functional='LKT-VW', calcType=calcType, params=params, **kwargs)
+    OutFunctional = GGA(
+        rho, functional='LKT-VW', calcType=calcType, params=params, **kwargs
+    )
     OutFunctional += vW(rho, y=y, calcType=calcType, **kwargs)
     OutFunctional.name = 'LKT'
     return OutFunctional

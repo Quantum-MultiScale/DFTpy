@@ -1,23 +1,34 @@
 import numpy as np
-from dftpy.grid import DirectGrid
-from dftpy.field import DirectField
-from dftpy.ions import Ions
+
 from dftpy.constants import Units
+from dftpy.field import DirectField
+from dftpy.grid import DirectGrid
+from dftpy.ions import Ions
+
 
 def xsf_readline(fr):
     for line in fr:
         line = line.strip()
         if len(line) == 0 or line.startswith("#"):
             continue
-        else :
+        else:
             yield line
 
-def read_xsf(infile, kind="all", full=False, pbc=True, units='angstrom', data_type='density', **kwargs):
+
+def read_xsf(
+    infile,
+    kind="all",
+    full=False,
+    pbc=True,
+    units='angstrom',
+    data_type='density',
+    **kwargs,
+):
     # http ://www.xcrysden.org/doc/XSF.html
     with open(infile, "r") as fr:
         fh = xsf_readline(fr)
         celltype = next(fh).upper()
-        if celltype != 'CRYSTAL' :
+        if celltype != 'CRYSTAL':
             raise AttributeError("Only support crystal xsf.")
         lattice = []
         line = next(fh).upper()
@@ -45,19 +56,19 @@ def read_xsf(infile, kind="all", full=False, pbc=True, units='angstrom', data_ty
             pos = np.asarray(pos)
             line = next(fh).upper()
 
-        if units.lower() == 'angstrom' :
+        if units.lower() == 'angstrom':
             ions_units = 'ase'
-        else :
+        else:
             ions_units = 'au'
-        ions = Ions(symbols = label, positions = pos, cell = lattice, units = ions_units)
+        ions = Ions(symbols=label, positions=pos, cell=lattice, units=ions_units)
 
         if kind == "ions":
             return ions
-        else :
+        else:
             if line.startswith("BEGIN_BLOCK_DATAGRID_"):
                 line = next(fh)
             blocks = []
-            for line in fh :
+            for line in fh:
                 data = []
                 line = line.upper()
                 if line.startswith("BEGIN_DATAGRID"):
@@ -90,9 +101,9 @@ def read_xsf(infile, kind="all", full=False, pbc=True, units='angstrom', data_ty
                     elif npbc == 2:
                         vlat[2] = np.cross(vlat[0], vlat[1])
                         vlat[2] = vlat[2] / np.sqrt(np.dot(vlat[2], vlat[2]))
-                    if units.lower() == 'angstrom' :
+                    if units.lower() == 'angstrom':
                         data_lat = vlat / Units.Bohr
-                    else :
+                    else:
                         data_lat = vlat
                     for line in fh:
                         if line[0] == "E":
@@ -106,7 +117,8 @@ def read_xsf(infile, kind="all", full=False, pbc=True, units='angstrom', data_ty
                         data = data[: np.prod(nrx)]
                     data = np.reshape(data, nrx, order="F")
                     blocks.append(data)
-                if line.strip().startswith('END_BLOCK_DATAGRID'): break
+                if line.strip().startswith('END_BLOCK_DATAGRID'):
+                    break
 
             if not blocks:
                 raise AttributeError("!!!ERROR : XSF file have some problem")
@@ -116,32 +128,34 @@ def read_xsf(infile, kind="all", full=False, pbc=True, units='angstrom', data_ty
             for spin in range(rank):
                 data = blocks[spin]
                 nrx = np.array(data.shape)
-                if nrx_prev is not None :
+                if nrx_prev is not None:
                     if not np.all(nrx_prev == nrx):
                         raise AttributeError("All DATAGRID should have same shape.")
-                else :
+                else:
                     nrx_prev = nrx.copy()
                 if pbc:
                     for i in range(len(nrx)):
-                        if nrx[i] > 1: nrx[i] -= 1
+                        if nrx[i] > 1:
+                            nrx[i] -= 1
                     data = data[: nrx[0], : nrx[1], : nrx[2]]
                 #
-                if units.lower() == 'angstrom' :
+                if units.lower() == 'angstrom':
                     data *= Units.Bohr**3
-                else :
+                else:
                     data_lat = vlat
                 blocks[spin] = data
 
             grid = DirectGrid(lattice=data_lat, nr=nrx, full=full)
             field = DirectField(grid=grid, griddata_3d=blocks, rank=rank)
-            if data_type == 'potential' :
+            if data_type == 'potential':
                 field /= Units.Ha
-    if kind == 'data' :
+    if kind == 'data':
         return field
-    else :
+    else:
         return ions, field, None
 
-def write_xsf(filexsf, ions = None, data = None, **kwargs):
+
+def write_xsf(filexsf, ions=None, data=None, **kwargs):
     return XSF(filexsf).write(ions, data, **kwargs)
 
 
@@ -151,7 +165,15 @@ class XSF(object):
         self.filexsf = filexsf
         self.cutoffvars = {}
 
-    def write(self, ions=None, data=None, data_type = 'density', units = "angstrom", title = 'DFTpy', **kwargs):
+    def write(
+        self,
+        ions=None,
+        data=None,
+        data_type='density',
+        units="angstrom",
+        title='DFTpy',
+        **kwargs,
+    ):
         """
         Write a ions and data into an xsf file.
         Not all specifications of the xsf file format are implemented, they will
@@ -162,11 +184,12 @@ class XSF(object):
         """
 
         with open(self.filexsf, "w") as fileout:
-            if units.lower() == 'angstrom' : ions = ions.to_ase()
+            if units.lower() == 'angstrom':
+                ions = ions.to_ase()
             self._write_header(fileout, title)
             self._write_cell(fileout, ions.cell)
             self._write_coord(fileout, ions)
-            self._write_datagrid(fileout, data, data_type = data_type, units = units)
+            self._write_datagrid(fileout, data, data_type=data_type, units=units)
 
         return
 
@@ -189,26 +212,29 @@ class XSF(object):
         for i in range(len(ions.positions)):
             mywrite(fileout, (ions.symbols[i], ions.positions[i]), True)
 
-    def _write_datagrid(self, fileout, plot, data_type = 'density', units = 'angstrom', **kwargs):
+    def _write_datagrid(
+        self, fileout, plot, data_type='density', units='angstrom', **kwargs
+    ):
         ndim = plot.span  # 2D or 3D grid?
         if ndim < 2:
             return  # XSF format doesn't support one data grids
         val_per_line = 5
         rank = plot.rank
         grid = plot.grid
-        if rank == 1 :
+        if rank == 1:
             plot = [plot]
         data = []
-        for p in plot :
+        for p in plot:
             values = p.get_values_flatarray(pad=1, order="F")
-            if units == 'angstrom' : values /= Units.Bohr ** 3
-            if data_type == 'potential' :
+            if units == 'angstrom':
+                values /= Units.Bohr**3
+            if data_type == 'potential':
                 values = values * Units.Ha
             data.append(values)
 
         mywrite(fileout, "BEGIN_BLOCK_DATAGRID_{}D".format(ndim), True)
         mywrite(fileout, "{}d_datagrid_{}".format(ndim, data_type), True)
-        for i, values in enumerate(data) :
+        for i, values in enumerate(data):
             mywrite(fileout, "BEGIN_DATAGRID_{}D#{}".format(ndim, i), True)
             origin = grid.origin * Units.Bohr
             if ndim == 3:
@@ -220,7 +246,8 @@ class XSF(object):
             )  # TODO, there might be an actual origin if we're dealing with a custom cut of the grid
             for ilat in range(ndim):
                 latt = grid.lattice[ilat]
-                if units == 'angstrom' : latt = latt * Units.Bohr
+                if units == 'angstrom':
+                    latt = latt * Units.Bohr
                 mywrite(fileout, latt, True)
 
             nnr = len(values)
@@ -229,7 +256,8 @@ class XSF(object):
                 igrid = iline * val_per_line
                 mywrite(fileout, values[igrid : igrid + val_per_line], True)
             igrid = nlines * val_per_line
-            if igrid < nnr : mywrite(fileout, values[igrid:nnr], True)
+            if igrid < nnr:
+                mywrite(fileout, values[igrid:nnr], True)
             mywrite(fileout, "END_DATAGRID_{}D".format(ndim), True)
 
         mywrite(fileout, "END_BLOCK_DATAGRID_{}D".format(ndim), True)

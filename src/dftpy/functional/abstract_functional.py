@@ -6,6 +6,7 @@
 
 # general python imports
 from abc import ABC, abstractmethod
+
 from dftpy.functional.functional_output import FunctionalOutput
 
 

@@ -1,12 +1,12 @@
 import numpy as np
 
-from dftpy.functional.pseudo.abstract_pseudo import BasePseudo
 from dftpy.constants import Units
+from dftpy.functional.pseudo.abstract_pseudo import BasePseudo
 
 
 class USP(BasePseudo):
-    def __init__(self, fname, direct = False, **kwargs):
-        super().__init__(fname, direct = direct, **kwargs)
+    def __init__(self, fname, direct=False, **kwargs):
+        super().__init__(fname, direct=direct, **kwargs)
 
     def read(self, fname):
         """
@@ -32,35 +32,47 @@ class USP(BasePseudo):
             if ext == 'usp':
                 if "END COMMENT" in line:
                     ibegin = i + 4
-                elif ibegin > 1 and (line.strip() == "1000" or len(line.strip()) == 1) and i - ibegin > 4:
+                elif (
+                    ibegin > 1
+                    and (line.strip() == "1000" or len(line.strip()) == 1)
+                    and i - ibegin > 4
+                ):
                     iend = i
                     break
-                elif ibegin<1 :
+                elif ibegin < 1:
                     comment += line
             elif ext == 'uspso':
                 if "END COMMENT" in line:
                     ibegin = i + 5
-                elif ibegin > 1 and (line.strip() == "1000" or len(line.strip()) == 5) and i - ibegin > 4:
+                elif (
+                    ibegin > 1
+                    and (line.strip() == "1000" or len(line.strip()) == 5)
+                    and i - ibegin > 4
+                ):
                     iend = i
                     break
-                elif ibegin<1 :
+                elif ibegin < 1:
                     comment += line
 
         line = " ".join([line.strip() for line in lines[ibegin:iend]])
 
         zval = float(lines[ibegin - 2].strip())
 
-        if "1000" in lines[iend] or len(lines[iend].strip()) == 1 or len(lines[iend].strip()) == 5:
+        if (
+            "1000" in lines[iend]
+            or len(lines[iend].strip()) == 1
+            or len(lines[iend].strip()) == 5
+        ):
             pass
         else:
             raise AttributeError("Error : Check the PP file : {}".format(fname))
         gmax = float(lines[ibegin - 1].split()[0]) * BOHR2ANG
 
         # v = np.array(line.split()).astype(np.float64) / (HARTREE2EV*BOHR2ANG ** 3 * 4.0 * np.pi)
-        self.v = np.array(line.split()).astype(np.float64) / (HARTREE2EV * BOHR2ANG ** 3)
+        self.v = np.array(line.split()).astype(np.float64) / (HARTREE2EV * BOHR2ANG**3)
         self.r = np.linspace(0, gmax, num=len(self.v))
         self.v[1:] -= zval * 4.0 * np.pi / self.r[1:] ** 2
-        self.info = {'comment' : comment}
+        self.info = {'comment': comment}
         # -----------------------------------------------------------------------
         nlcc = int(lines[ibegin - 1].split()[1])
         if nlcc == 2 and ext == 'usp':
