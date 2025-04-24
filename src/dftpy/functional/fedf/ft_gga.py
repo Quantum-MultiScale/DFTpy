@@ -12,16 +12,14 @@ from dftpy.functional.fedf import *
 from dftpy.constants import Units
 __all__ = ['FT_GGA','FT_GGAStress']
 
-mark=0
-
-def mc_print
 
 def FT_GGAPotential(rho,FT_T,functional: str = "LKT"):
     """
     Finite Temperature GGA Potential
     """
-    gtot  = rho.gradient() 
+    gtot  = rho.gradient()
     gtot2 = (PowerInt(gtot[0], 2) + PowerInt(gtot[1], 2) + PowerInt(gtot[2], 2))
+
     vke,kes,eke = FT_GGA_libxclike(rho,gtot2,FT_T,functional)
 
     kes = 2.0*kes 
@@ -31,7 +29,7 @@ def FT_GGAPotential(rho,FT_T,functional: str = "LKT"):
         hx =  kes*gtot[icar] 
         hx_g = hx.fft()
         hx_g = 1j * g[icar] * hx_g
-        hx = hx_g.ifft(force_real = True)
+        hx = hx_g.ifft()
         kes2 = kes2 + hx 
 
     pot = vke - kes2 
@@ -70,9 +68,8 @@ def FT_GGAStress(rho,temperature=1e-3,functional: str = "LKT",**kwargs):
     Finite Temperature GGA Stress
     """
     stress = np.zeros((3,3))
-    gtot  = rho.gradient() 
+    gtot  = rho.gradient()
     gtot2 = (PowerInt(gtot[0], 2) + PowerInt(gtot[1], 2) + PowerInt(gtot[2], 2))
-    
     vke,kes,eke = FT_GGA_libxclike(rho,gtot2,temperature,functional)
 
     kes = 2.0*kes 
@@ -173,15 +170,12 @@ def get_s2(rho,need_g=False) :
     s2drho = -(8.0/3.0) * gtot2 / ( 4.0 * ckf**2 * rho**(11.0/3.0) )
     return s2,s2drho,s2dg,gtot 
 
-def FT_GGA_libxclike(rho,sigma,FT_T,functional: str = "LKT") : 
-    
+def FT_GGA_libxclike(rho,sigma,FT_T,functional: str = "LKT") :
     ctf = (3.0/10.0) * ((3.0 * np.pi ** 2) ** (1.0 / 3.0)) ** 2.0
     ckf = (3.0 * np.pi ** 2) ** (1.0 / 3.0)
     tau_tf = ctf * PowerInt(rho,5,3)
-    print("sigma", sigma.max())
     s2 = sigma/(4.0*ckf**2*PowerInt(rho,8,3))
-    print("rho",rho.min())
-    print("s2", s2.max())
+#    print("rho",rho.min())
     s2[s2 < 1e-15] = 1e-15
     s2_dg = 1.0 / ( 4.0 * ckf**2 * rho**(8.0/3.0) ) 
     s2_drho = -(8.0/3.0) * s2 / rho 
@@ -201,8 +195,6 @@ def FT_GGA_libxclike(rho,sigma,FT_T,functional: str = "LKT") :
     s2_tau   = s2*(h-t*h_dt)/xi
     s2_sigma = s2*(t*h_dt)/zeta
 
-    print("s2_tau",s2_tau.max())
-    print("s2_sigma",s2_sigma.max())
     fs_tau,fs_tau_ds2 = get_Fs(s2_tau,functional=functional,need_ds2=True)
     fs_sigma,fs_sigma_ds2 = get_Fs(s2_sigma,functional=functional,need_ds2=True)
 
