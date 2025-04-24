@@ -30,12 +30,16 @@ jobs:
         enable-cache: true
         cache-dependency-glob: "uv.lock"
 
+    - name: Install dependencies (FFTW + Open MPI)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfftw3-dev libopenmpi-dev
+
     - name: Setup Python virtual environment
       run: |
         uv python install ${{ matrix.python-version }} &&
         uv venv --python ${{ matrix.python-version }} &&
-        uv sync --active --all-groups --no-extra mpi
-#        uv sync --active --all-extras --all-groups &&
+        uv sync --active --all-extras --all-groups
 
     - name: Run tests
       run: |
