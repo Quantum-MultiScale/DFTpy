@@ -93,11 +93,12 @@ KEDFEngines_Stress = {
 
 
 class KEDF(AbstractFunctional):
-    def __init__(self, name="WT", kedf = None, **kwargs):
+    def __init__(self, name="WT", kedf = None, core_density=None, **kwargs):
         self.type = 'KEDF'
         self.name = kedf or name
         self.options = kwargs
         self.options['kedf'] = self.name
+        self._core_density = core_density
         self.ke_kernel_saved = {
             "Kernel": None,
             "rho0": 0.0,
@@ -121,13 +122,41 @@ class KEDF(AbstractFunctional):
         else:
             return super(KEDF, cls).__new__(cls)
 
-    def compute(self, density, calcType={"E", "V"}, name=None, kedf = None, split=False, **kwargs):
+    def add_core_density(self, density, core_density):
+        """
+        Add NLCC for the KEDF
+        v[n_c + n_v]
+        """
+        if core_density is None:
+            new_density = density
+        elif density.rank == core_density.rank:
+            new_density = density + core_density
+            #print('No. electrons', new_density.integral())
+            #print('New density added')
+        elif density.rank == 2 and core_density.rank == 1:
+            new_density = density + 0.5 * core_density
+        else:
+            raise ValueError('Not support!')
+        return new_density
+
+    @property
+    def core_density(self):
+        #if self._core_density is None and self.pseudo is not None :
+        #    self._core_density = self.pseudo.core_density
+        return self._core_density
+
+    @core_density.setter
+    def core_density(self, value):
+        self._core_density = value
+
+
+    def compute(self, density, calcType={"E", "V"}, name=None, kedf = None, split=False, core_density = None, **kwargs):
         if kedf : name = kedf
         if name is None : name = self.name
         name = name.upper()
         options = copy.deepcopy(self.options)
         options.update(kwargs)
-        #-----------------------------------------------------------------------
+        #----------------------------------------------------------------------
         k_str = options.pop('k_str', None) # For GGA functional
         if name.startswith('LIBXC'):
             options['libxc'] = list(k_str.split())
@@ -142,6 +171,9 @@ class KEDF(AbstractFunctional):
             name = 'MGGA'
         options['functional'] = k_str
         options = {k :v for k, v in options.items() if v is not None}
+        #-----------------------------------------------------------------------
+        # Add NLCC
+        density = self.add_core_density(density, self.core_density)
         #-----------------------------------------------------------------------
         functional = {}
         if density.ndim > 3:

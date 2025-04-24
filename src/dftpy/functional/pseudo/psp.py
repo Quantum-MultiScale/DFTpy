@@ -75,14 +75,15 @@ class PSP(BasePseudo):
         # line = " ".join([line for line in lines[ibegin:iend]])
         # data = np.fromstring(line, dtype=float, sep=" ")
         # data = np.array(line.split()).astype(np.float64) / HARTREE2EV / BOHR2ANG ** 3
-        data = [line.split()[1:3] for line in lines[ibegin:iend]]
-        data = np.asarray(data, dtype = np.float64)
-
-        self.r = data[:, 0]
-        self.v = data[:, 1]
-        self._zval = self.info['zval']
-
-        if fchrg > 0.0 :
+        if fchrg > 0.0 and self.info['lloc'] is not None :
+            data = [line.split()[1:4] for line in lines[ibegin:iend]]
+            data = np.asarray(data, dtype = np.float64)
+            core_density = data[:, 2]
+            core_density = np.asarray(core_density, dtype = np.float64)
+            core_density /= (4.0 * np.pi)
+            self._core_density_grid = data[:,0]
+            self._core_density = core_density
+        elif fchrg > 0.0 and self.infor['lloc'] is None:
             ibegin = 6+ (mmax + 1) * lloc + mmax
             iend = ibegin + mmax
             core_density = [line.split()[1:3] for line in lines[ibegin:iend]]
@@ -90,6 +91,23 @@ class PSP(BasePseudo):
             core_density[:, 1] /= (4.0 * np.pi)
             self._core_density_grid = core_density[:, 0]
             self._core_density = core_density[:,1]
+
+        else : 
+            data = [line.split()[1:3] for line in lines[ibegin:iend]]
+            data = np.asarray(data, dtype = np.float64)
+
+        self.r = data[:, 0]
+        self.v = data[:, 1]
+        self._zval = self.info['zval']
+        
+        #if fchrg > 0.0 :
+        #    ibegin = 6+ (mmax + 1) * lloc + mmax
+        #    iend = ibegin + mmax
+        #    core_density = [line.split()[1:3] for line in lines[ibegin:iend]]
+        #    core_density = np.asarray(core_density, dtype = np.float64)
+        #    core_density[:, 1] /= (4.0 * np.pi)
+        #    self._core_density_grid = core_density[:, 0]
+        #    self._core_density = core_density[:,1]
 
     def _read_psp6(self, lines):
         info = self.info
@@ -175,6 +193,6 @@ class PSP(BasePseudo):
                 fh.write(f"{item:d}{sp}")
             fh.write(f"{comments[4]}\n")
             fh.write('4\n')
-
-            for i, (r, v) in enumerate(zip(self.r, self.v)):
-                fh.write(f"{i+1:<4d}  {r:.13e} {v:.13e}\n")
+                        
+            for i, (r, v, core_density) in enumerate(zip(self.r, self.v, self.core_density)):
+                fh.write(f"{i+1:<4d}  {r:.13e} {v:.13e} {core_density:.13}\n")
