@@ -36,6 +36,9 @@ class Ions(Atoms):
         "get_ncharges",
         "set_charges",
         "get_charges",
+        "get_scaled_positions",
+        "get_chemical_formula",
+        "get_cell",
         "strf",
         "istrf",
         "symbols_uniq",
@@ -49,6 +52,8 @@ class Ions(Atoms):
         "to_ase",
         "from_ase",
         "has",
+        "repeat",
+        "copy",
     ]
     allowed_attributes = [
         "init_options",
@@ -73,6 +78,7 @@ class Ions(Atoms):
         "zval",
         "arrays",
         "pbc",
+        "constraints", # please do not use this
     ]
 
     def __getattribute__(self, name):
@@ -88,27 +94,33 @@ class Ions(Atoms):
                 )
         else:
             if not is_special and name not in Ions.allowed_attributes:
-                raise AttributeError(f"Unsupported attribute `{name}` in {self.__class__.__name__}. Please use 'to_ase' method to convert from ASE object.")
+                raise AttributeError(
+                    f"Unsupported attribute `{name}` in {self.__class__.__name__}. Please use 'to_ase' method to convert from ASE object.")
         return attr
 
     def __init__(
-        self,
-        symbols=None,
-        positions=None,
-        numbers=None,
-        tags=None,
-        magmoms=None,
-        charges=None,
-        scaled_positions=None,
-        cell=None,
-        celldisp=None,
-        info=None,
+            self,
+            symbols=None,
+            positions=None,
+            numbers=None,
+            tags=None,
+            magmoms=None,
+            charges=None,
+            scaled_positions=None,
+            cell=None,
+            celldisp=None,
+            info=None,
+            pbc=True,
     ):
-
+        if isinstance(symbols, Atoms):
+            ase_ions = Ions.from_ase(symbols)
+            self.__dict__.update(ase_ions.__dict__)
+            return
+        
         if hasattr(symbols, "get_positions") or (
-            isinstance(symbols, (list, tuple))
-            and len(symbols) > 0
-            and isinstance(symbols[0], Atom)
+                isinstance(symbols, (list, tuple))
+                and len(symbols) > 0
+                and isinstance(symbols[0], Atom)
         ):
             raise TypeError("Please use 'from_ase' method to convert from ASE object.")
 
@@ -158,29 +170,14 @@ class Ions(Atoms):
         self.set_initial_magnetic_moments(default(magmoms, 0.0))
         self.set_initial_charges(default(charges, 0.0))
         self._pbc = np.array([True, True, True], dtype=bool)
+        self.set_pbc(pbc)
         self._constraints = None
+        self._calc = None
 
         if info is None:
             self.info = {}
         else:
             self.info = dict(info)
-
-        # super().__init__(
-        #     symbols=symbols,
-        #     positions=positions,
-        #     numbers=numbers,
-        #     tags=tags,
-        #     momenta=None,
-        #     masses=None,
-        #     magmoms=magmoms,
-        #     charges=charges,
-        #     scaled_positions=scaled_positions,
-        #     cell=cell,
-        #     pbc=True,
-        #     celldisp=celldisp,
-        #     constraint=None,
-        #     calculator=None,
-        #     info=info,)
 
     def to_ase(self):
         atoms = Atoms(
@@ -188,7 +185,7 @@ class Ions(Atoms):
             positions=self.get_positions() * Units.Bohr,
             # numbers=self.numbers,d
             tags=self.get_tags(),
-            magmoms=self.get_initial_magnetic_moments(),
+            magmoms=self.get_initial_magnetic_moments() * (Units.A * Units.Bohr ** 2),
             charges=self.get_initial_charges(),
             cell=self.cell.array * Units.Bohr,
             celldisp=self.get_celldisp() * Units.Bohr,
@@ -204,9 +201,9 @@ class Ions(Atoms):
             positions=atoms.get_positions() / Units.Bohr,
             # numbers=atoms.numbers,
             tags=atoms.get_tags(),
-            magmoms=atoms.get_initial_magnetic_moments(),
+            magmoms=atoms.get_initial_magnetic_moments() / (Units.A * Units.Bohr ** 2),
             charges=atoms.get_initial_charges(),
-            cell=atoms.cell,
+            cell=atoms.cell.array / Units.Bohr,
             celldisp=atoms.get_celldisp() / Units.Bohr,
             info=atoms.info,
         )
@@ -289,6 +286,6 @@ class Ions(Atoms):
                     zval[k] = self.charges[i]
                     break
         return zval
-    
-    def set_positions(self, newpositions):
-        self.set_array('positions', newpositions, shape=(3,))
+
+    def set_constraint(self, constraints):
+        raise AttributeError(f"Unsupported attribute `constraints` in {self.__class__.__name__}. Please use 'to_ase' method to convert from ASE object.")
