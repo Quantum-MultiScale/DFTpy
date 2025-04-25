@@ -16,7 +16,11 @@ from dftpy.mpi import sprint, SerialComm, MP
 from dftpy.time_data import timer
 
 from dftpy.functional.pseudo.abstract_pseudo import BasePseudo
-from dftpy.functional.pseudo.pp import PP
+from dftpy.functional.pseudo.psp import PSP
+from dftpy.functional.pseudo.recpot import RECPOT
+from dftpy.functional.pseudo.upf import UPF
+from dftpy.functional.pseudo.usp import USP
+from dftpy.functional.pseudo.xml import PAWXML
 
 
 # NEVER TOUCH THIS CLASS
@@ -606,6 +610,23 @@ class LocalPseudo(AbstractLocalPseudo):
         stress /= self.grid.volume
         return stress
 
+
+PPEngines = {
+            "recpot" : RECPOT,
+            "usp"    : USP,
+            "uspcc"  : USP,
+            "uspso"  : USP,
+            "upf"    : UPF,
+            "psp"    : PSP,
+            "psp8"   : PSP,
+            "lps"    : PSP,
+            "psp6"   : PSP,
+            "fhi"    : PSP,
+            "cpi"    : PSP,
+            "xml"    : PAWXML,
+        }
+
+
 class ReadPseudo(object):
     """
     Support class for LocalPseudo.
@@ -766,16 +787,20 @@ class ReadPseudo(object):
             kwargs
         """
         if engine is None :
-            engine = PP
-            
-        if self.parallel :
-            if self.comm.rank == 0 :
-                pp = engine(fname)
-            else :
-                pp = None
-            pp = self.comm.bcast(pp)
+            suffix = os.path.splitext(fname)[1][1:].lower()
+            engine = PPEngines.get(suffix, None)
+
+        if engine is None :
+            raise AttributeError("Pseudopotential '{}' is not supported".format(fname))
         else :
-            pp = engine(fname)
+            if self.parallel :
+                if self.comm.rank == 0 :
+                    pp = engine(fname)
+                else :
+                    pp = None
+                pp = self.comm.bcast(pp)
+            else :
+                pp = engine(fname)
 
         self._pp[key] = pp
         self._gp[key] = pp.radial_grid
