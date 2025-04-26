@@ -9,8 +9,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  unittest:
-    # needs: mirror
+  test:
     runs-on: ubuntu-latest
     if: ${{ !startsWith(github.head_ref, 'docs-') && !startsWith(github.head_ref, 'release-') }}
     concurrency: # keep latest workflow and cancel exist workflow in PR
@@ -39,7 +38,7 @@ jobs:
       run: |
         uv python install ${{ matrix.python-version }} &&
         uv venv --python ${{ matrix.python-version }} &&
-        uv sync --active --all-extras --all-groups
+        uv sync --all-extras --all-groups
 
     - name: Run tests
       run: |
