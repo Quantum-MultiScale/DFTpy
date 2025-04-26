@@ -19,3 +19,9 @@ doc/source/tutorials/config.rst
 
 # coverage report in HTML
 htmlcov/
+
+# macOS
+.DS_Store
+
+# uv
+uv.lock
