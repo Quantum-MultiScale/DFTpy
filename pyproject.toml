@@ -1,18 +1,24 @@
 [build-system]
-requires = ["setuptools >= 61.0", "wheel"]
+requires = ["setuptools >= 72", "setuptools-scm >= 8.3"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+# You should update the version here!
+# Typically, the version number should be greater than the latest release version, which can be found in the most recent
+# version tag. A trailing `dev0` should be included.
+fallback_version = "2.1.3dev0"
 
 [project]
 name = "dftpy"
-version = "2.1.3dev0"
-license = { file = "LICENSE.txt" }
 description = "Python packages for Density Functional Theory"
+readme = "README.md"
+license-files = [ "LICENSE.txt" ]
+dynamic = [ "version" ]
 maintainers = [
-	{name = "Pavanello Research Group",		email = "m.pavanello@rutgers.edu"},
-	{name = "Xuecheng Shao",				email = "shaoxc@jlu.edu.cn"},
+	{ name = "Pavanello Research Group", email = "m.pavanello@rutgers.edu" },
+	{ name = "Xuecheng Shao",            email = "shaoxc@jlu.edu.cn" },
 ]
 requires-python = ">=3.9"
-readme = "README.md"
 classifiers = [
 	'Development Status :: 3 - Alpha',
 	'Intended Audience :: Science/Research',
@@ -23,7 +29,7 @@ classifiers = [
 	'Programming Language :: Python :: 3.12', # some optional dependencies are not available for this version
 	'Topic :: Scientific/Engineering :: Chemistry',
     'Topic :: Scientific/Engineering :: Physics',
-    "Operating System :: POSIX",
+    "Operating System :: POSIX :: Linux",
     "Operating System :: Unix",
     "Operating System :: MacOS",
 ]
@@ -33,6 +39,11 @@ dependencies = [
 	"ase>=3.22.0",
 	"xmltodict>=0.12.0",
 ]
+
+[project.urls]
+homepage = "https://gitlab.com/pavanello-research-group/dftpy"
+documentation = "http://dftpy.rutgers.edu"
+source = "https://gitlab.com/pavanello-research-group/dftpy"
 
 [project.scripts]
 dftpy = 'dftpy.cui.main:main'
@@ -48,8 +59,8 @@ extra = [
 	"upf-to-json>=0.9.5",
 ]
 mpi = [
-	"mpi4py",
-	"mpi4py-fft",
+    "mpi4py>=4.0.3",
+    "mpi4py-fft>=2.0.6",
 ]
 
 [dependency-groups]
@@ -67,14 +78,19 @@ test = [
     "pytest-cov>=6.1.1",
     "pytest-mpi>=0.6",
 ]
-
-[project.urls]
-homepage = "https://gitlab.com/pavanello-research-group/dftpy"
-documentation = "http://dftpy.rutgers.edu"
-source = "https://gitlab.com/pavanello-research-group/dftpy"
+# Add these for the future use.
+# Currently, this project include too many warnings, and we can't use these linters in CI/CD workflows.
+linters = [
+	"mypy",
+	"ruff",
+]
 
 [tool.setuptools]
-include-package-data = true
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+"*" = ["README.md", "LICENSE.txt"]
+"dftpy" = ["*.json"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
