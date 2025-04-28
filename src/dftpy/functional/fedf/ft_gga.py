@@ -44,10 +44,10 @@ def FT_GGAEnergy(rho,FT_T,functional: str = "LKT"):
     tau_tf = ctf * PowerInt(rho,5,3)
 
     t = get_reduce_t(rho,FT_T)
-    h = FTH(t)
-    h_dt = FTH_dt(t)
-    zeta = FTZETA(t)
-    xi = FTXI(t)
+    h = fth(t)
+    h_dt = fth_dt(t)
+    zeta = ftzeta(t)
+    xi = ft_xi(t)
 
     s2 = get_s2(rho)
     s2_tau   = s2*(h-t*h_dt)/xi
@@ -182,13 +182,13 @@ def FT_GGA_libxclike(rho,sigma,FT_T,functional: str = "LKT") :
 
     t = get_reduce_t(rho,FT_T)
     t_drho = - (2.0/3.0) * t / rho
-    h = FTH(t)
-    h_dt = FTH_dt(t)
-    h_dt2 = FTH_dt2(t)
-    zeta = FTZETA(t)
-    zeta_dt = FTZETA_dt(t)
-    xi = FTXI(t)
-    xi_dt = FTXI_dt(t)
+    h = fth(t)
+    h_dt = fth_dt(t)
+    h_dt2 = fth_dt2(t)
+    zeta = ftzeta(t)
+    zeta_dt = ft_zeta_dt(t)
+    xi = ft_xi(t)
+    xi_dt = ft_xi_dt(t)
     ### debug 
     #print(rho[0,0,0],h_dt2[0,0,0],zeta[0,0,0],zeta_dt[0,0,0],xi[0,0,0],xi_dt[0,0,0])
 

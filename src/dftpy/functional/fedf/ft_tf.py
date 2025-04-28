@@ -6,7 +6,7 @@ from dftpy.functional.functional_output import FunctionalOutput
 from dftpy.math_utils import PowerInt
 from dftpy.time_data import timer
 from dftpy.field import DirectField
-from dftpy.functional.fedf import FTK,FTK_dt,get_reduce_t
+from dftpy.functional.fedf import ftk,ftk_dt,get_reduce_t
 from dftpy.constants import Units
 __all__ = ['FT_TF','FT_TFStress']
 
@@ -17,8 +17,8 @@ def FT_ThomasFermiPotential(rho,FT_T):
 
     ctf = (3.0 / 10.0) * (3.0 * np.pi ** 2) ** (2.0 / 3.0)
     t = get_reduce_t(rho,FT_T)
-    kappa = FTK(t)
-    kappa_dt = FTK_dt(t)
+    kappa = ftk(t)
+    kappa_dt = ftk_dt(t)
     rho23 = PowerInt(rho, 2, 3)
     pot = ( (5.0/3.0) * rho23 * kappa 
         - (2.0/3.0) * rho23 * kappa_dt * t
@@ -34,7 +34,7 @@ def FT_ThomasFermiEnergy(rho,FT_T):
 
     t = get_reduce_t(rho,FT_T) 
     edens = PowerInt(rho, 5, 3)
-    kappa = FTK(t)
+    kappa = ftk(t)
     edens = kappa * edens
     edens *= (3.0 / 10.0) * (3.0 * np.pi ** 2) ** (2.0 / 3.0)
     ene = edens.sum() * rho.grid.dV

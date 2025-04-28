@@ -4,7 +4,7 @@ import numpy as np
 
 from dftpy.functional.functional_output import FunctionalOutput
 from dftpy.math_utils import PowerInt
-from dftpy.functional.fedf import FTH, FTH_dt, get_reduce_t
+from dftpy.functional.fedf import fth, fth_dt, get_reduce_t
 
 __all__ = ['FT_vW', 'FT_vWStress']
 
@@ -52,8 +52,8 @@ def FT_vWPotential(rho, FT_T):
     tau -> ground state vW energy density 
     """
     t = get_reduce_t(rho, FT_T)
-    h = FTH(t)
-    h_dt = FTH_dt(t)
+    h = fth(t)
+    h_dt = fth_dt(t)
     # print("h",h[1,1,1])
     # print("h_dt",h_dt[1,1,1])
     tau = get_vW_kedensity(rho)
@@ -67,7 +67,7 @@ def FT_vWEnergy(rho, FT_T):
     Finite Temperature vW Energy
     """
     t = get_reduce_t(rho, FT_T)
-    h = FTH(t)
+    h = fth(t)
     tau = get_vW_kedensity(rho)
     eden = tau * h
     ene = eden.sum() * rho.grid.dV
@@ -80,8 +80,8 @@ def FT_vWStress(rho, x=1.0, temperature=1e-3, **kwargs):
     """
     stress = np.zeros((3, 3))
     t = get_reduce_t(rho, temperature)
-    h = FTH(t)
-    h_dt = FTH_dt(t)
+    h = fth(t)
+    h_dt = fth_dt(t)
     dtdrho = 2.0 / 3.0 * t / rho
     grho = rho.gradient()
     grho2 = (PowerInt(grho[0], 2) + PowerInt(grho[1], 2) + PowerInt(grho[2], 2))
