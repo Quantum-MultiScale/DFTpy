@@ -20,8 +20,6 @@ def FT_WTPotential(rho, kernel, alpha=5.0 / 6.0, beta=5.0 / 6.0):
     pot_out = (alpha + beta) * pot * rhoa / rho
     return energy, pot_out
 
-    return pot
-
 
 def FT_WTEnergy(rho: DirectField, kernel, alpha=5.0 / 6.0, beta=5.0 / 6.0):
     """

@@ -1,7 +1,6 @@
 """
 the Lindhard function used in Nonlocal Finite temperature free energy functionals
 """
-import numpy as np
 
 from dftpy.functional.fedf import ftk, ftk_dt, ftk_dt2
 from dftpy.functional.kedf.kernel import LindhardFunction
@@ -80,3 +79,62 @@ def ft_lindhard_drho(eta: float, rho: float, temp: float, maxp: int,
         aa = beta * beta * s1 / (4.0 * c1 * c1) * dchempot_drho
         lind += aa * lind_x
     return lind
+
+
+import numpy as np
+
+
+def dfdr(np_points, h, f):
+    """
+    First-order non-dimensional derivative on a uniform grid.
+
+    Parameters
+    ----------
+    np_points : int
+        Number of points.
+    h : float
+        Grid size.
+    f : ndarray
+        Function values at the grid points.
+    zion : float, optional
+        Nuclear charge, if provided modify the last few df values.
+
+    Returns
+    -------
+    df : ndarray
+        Derivative df/dr at each grid point.
+    """
+    finite_order = 6
+    df = np.zeros(np_points, dtype=float)
+    coe = np.zeros(2 * finite_order + 1, dtype=float)
+
+    coe_pos = np.array([
+        0.857142857142857,
+        -0.267857142857143,
+        0.07936507936507936,
+        -0.017857142857142856,
+        0.0025974025974025974,
+        -0.00018037518037518038
+    ]) / h
+
+    # Fill coe array: center at index finite_order
+    coe[finite_order + 1:] = coe_pos
+    coe[finite_order - 1::-1] = -coe_pos
+
+    # Extend f to allow negative indices
+    ft = np.zeros(np_points + finite_order, dtype=float)
+    ft[finite_order:] = f.copy()
+    for i in range(finite_order):
+        ft[i] = f[1 + finite_order - i]
+
+    # Finite difference
+    for i in range(np_points - finite_order):
+        tmp = 0.0
+        for ish in range(-finite_order, finite_order + 1):
+            tmp += coe[ish + finite_order] * ft[i + ish + finite_order]
+        df[i] = tmp
+
+    # Last few points
+    df[np_points - finite_order:] = 0.0
+
+    return df
