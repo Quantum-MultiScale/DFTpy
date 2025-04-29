@@ -72,9 +72,10 @@ def ft_lindhard(eta: float, rho: float, temp: float, maxp: int,
     e = -dx / 2 + dx * ip + min_x
     fake_kf = np.sqrt(2.0 * e)
     fake_eta = eta * kf / fake_kf
-    lind_x = 1.0 / LindhardFunction(fake_eta, 0.0, 0.0)
+    lind_x = fake_kf / LindhardFunction(fake_eta, 0.0, 0.0)
     aa = beta / (4 * np.cosh((e - chemical_potential) * beta / 2) ** 2.0)
-    lind = np.sum(aa * lind_x)
+    lind = np.sum(aa * lind_x * dx)
+    print("CCC")
     return lind
 
 

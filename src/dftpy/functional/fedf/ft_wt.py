@@ -59,7 +59,7 @@ def FT_WT(rho, ke_kernel_saved, calcType={"E", "V"}, temperature=1e-3,
     rho0 = np.mean(rho)
     neta = 10000
     max_eta = 50.0
-    delta_eta = max_eta / neta
+    delta_eta = max_eta / (neta - 1)
     kernel = _fill_kernel(rho, ke_kernel_saved, rho0, temperature,
                           max_eta=max_eta,
                           neta=neta, delta_eta=delta_eta)
@@ -94,7 +94,7 @@ def get_WT_kernel_table(kernel_table: dict, rho0: float, temperature: float,
         chi_vw = 4.0 / 3.0 / (2.0 * eta) ** 2
         chi_lr = ft_lindhard(eta, rho0, temperature, maxp=maxp)
         kernel_table['weta'][ii] = 1.0 / chi_lr - 1.0 / chi_vw - 1.0 / chi_tf
-    #        print("ii", ii)
+        print("ii", ii, chi_tf, chi_vw, chi_lr, kernel_table['weta'][ii])
     print("kernel table end")
 
     kernel_table['weta'] = coef * kernel_table['weta']
@@ -116,14 +116,15 @@ def _fill_kernel(rho, ke_kernel_saved: dict, rho0: float, temperature: float,
                                               beta=beta)
     if kernel_table_update or (ke_kernel_saved['kernel'] is None):
         tkf = 2.0 * (3.0 * np.pi ** 2 * rho0) ** (1.0 / 3.0)
-        gg = (rho.grid.get_reciprocal().q) ** 2.0
-        kernel = gg / tkf
+        q = rho.grid.get_reciprocal().q
+        kernel = q / tkf
         kernel_flat = kernel.flatten()
         kernel_flat = np.interp(kernel_flat,
                                 ke_kernel_saved['kernel_table']['eta'],
                                 ke_kernel_saved['kernel_table']['weta'])
+        print(kernel[6, 6, 6])
         kernel = kernel_flat.reshape(kernel.shape)
-        if gg[0, 0, 0] < 1e-20:
+        if q[0, 0, 0] < 1e-20:
             kernel[0, 0, 0] = 0.0
         ke_kernel_saved['kernel'] = kernel
     else:
