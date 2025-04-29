@@ -12,7 +12,7 @@ def fermi__1_2_elegent(mu: float, maxp: int, ) -> float:
     min_x = mu - 60.0
     min_x = 0.0 if min_x < 0.0 else min_x
     dx = (max_x - min_x) / maxp
-    for ip in range(maxp):
+    for ip in range(1, maxp + 1):
         e = - dx / 2 + dx * ip + min_x
         lind_x = 2.0 * (e ** 0.5)
         AA = 1.0 / (4 * np.cosh((e - mu) / 2.0) ** 2.0)
@@ -58,7 +58,7 @@ def ft_lindhard(eta: float, rho: float, temp: float, maxp: int,
     min_x = 1e-20 if min_x < 0.0 else min_x
     dx = (max_x - min_x) / float(maxp)
     lind = 0.0
-    for ip in range(0, maxp):
+    for ip in range(1, maxp + 1):
         e = -dx / 2 + dx * ip + min_x
         fake_kf = np.sqrt(2.0 * e)
         fake_eta = eta * kf / fake_kf
@@ -84,7 +84,7 @@ def ft_lindhard_drho(eta: float, rho: float, temp: float, maxp: int,
     min_x = 1e-20 if min_x < 0.0 else min_x
     dx = (max_x - min_x) / float(maxp)
     lind = 0.0
-    for ip in range(0, maxp):
+    for ip in range(1, maxp + 1):
         e = -dx / 2 + dx * ip + min_x
         fake_kf = np.sqrt(2.0 * e)
         fake_eta = eta * kf / fake_kf

@@ -71,5 +71,8 @@ def get_WT_kernel_table(kernel_table: dict, rho0: float, temperature: float,
     coef = np.pi ** 2.0 / (2.0 * beta * alpha) / rho0 ** (
             beta + alpha - 2.0) / kf
     chem_pot = get_chemical_potential(rho0, temperature)
-     fermi__1_2_elegent
+    chi_tf = fermi__1_2_elegent(chem_pot / temperature)
+    chi_tf = 0.5 * (2.0 * temperature) ** (0.5) * chi_tf / kf
+    kernel_table['eat'] = np.zeros(neta)
+
     return True
