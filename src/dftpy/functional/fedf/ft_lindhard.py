@@ -6,7 +6,7 @@ from dftpy.functional.fedf import ftk, ftk_dt, ftk_dt2
 from dftpy.functional.kedf.kernel import LindhardFunction
 
 
-def fermi__1_2_elegent(mu: float, maxp: int, ) -> float:
+def fermi__1_2_elegent(mu: float, maxp: int) -> float:
     i12 = 0.0
     max_x = mu + 60.0
     min_x = mu - 60.0
@@ -26,7 +26,7 @@ def get_chemical_potential(rho: float, temp: float):
     t = np.array([2.0 * temp / (3.0 * np.pi ** 2.0 * rho) ** (2.0 / 3.0)])
     kappa = ftk(t)
     kappa_dt = ftk_dt(t)
-    pot = (5.0 / 3.0 * rho ** (2.0 / 3.0) * kappa[0] &
+    pot = (5.0 / 3.0 * rho ** (2.0 / 3.0) * kappa[0]
            - 2.0 / 3.0 * rho ** (2.0 / 3.0) * kappa_dt[0] * t[0])
     return pot * ctf
 
@@ -58,13 +58,23 @@ def ft_lindhard(eta: float, rho: float, temp: float, maxp: int,
     min_x = 1e-20 if min_x < 0.0 else min_x
     dx = (max_x - min_x) / float(maxp)
     lind = 0.0
+    """
+    old version 
     for ip in range(1, maxp + 1):
         e = -dx / 2 + dx * ip + min_x
         fake_kf = np.sqrt(2.0 * e)
-        fake_eta = eta * kf / fake_kf
+        fake_eta = np.array([eta * kf / fake_kf])
         lind_x = 1.0 / LindhardFunction(fake_eta, 0.0, 0.0)
         aa = beta / (4 * np.cosh((e - chemical_potential) * beta / 2) ** 2.0)
-        lind += aa * lind_x
+        lind += aa * lind_x[0]
+    """
+    ip = np.arange(1, maxp + 1)
+    e = -dx / 2 + dx * ip + min_x
+    fake_kf = np.sqrt(2.0 * e)
+    fake_eta = eta * kf / fake_kf
+    lind_x = 1.0 / LindhardFunction(fake_eta, 0.0, 0.0)
+    aa = beta / (4 * np.cosh((e - chemical_potential) * beta / 2) ** 2.0)
+    lind = np.sum(aa * lind_x)
     return lind
 
 
@@ -162,15 +172,23 @@ def check_kernel_table(kernel_table: dict, rho0: float,
     Ture --> not need renew
     False --> need renew
     """
-    if kernel_table is None: return False
-    if kernel_table["rho0"] != rho0: return False
-    if kernel_table["temperature"] != temperature: return False
+    if not kernel_table:
+        print("E1")
+        return False
+    if abs(kernel_table['rho0'] - rho0) > 1e-12:
+        print("E2")
+        print("saved", kernel_table['rho0'])
+        print("gaved", rho0)
+        return False
+    if abs(kernel_table['temperature'] - temperature) > 1e-12:
+        print("E3")
+        return False
     return True
 
 
 def init_kernel_table(kernel_table: dict, max_eta: float, neta: int,
                       delta_eta: float) -> bool:
-    if kernel_table is None:
+    if not kernel_table:
         kernel_table['max_eta'] = max_eta
         kernel_table['neta'] = neta
         kernel_table['delta_eta'] = delta_eta
