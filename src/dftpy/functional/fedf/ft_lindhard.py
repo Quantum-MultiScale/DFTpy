@@ -6,6 +6,21 @@ from dftpy.functional.fedf import ftk, ftk_dt, ftk_dt2
 from dftpy.functional.kedf.kernel import LindhardFunction
 
 
+def fermi__1_2_elegent(mu: float, maxp: int, ) -> float:
+    i12 = 0.0
+    max_x = mu + 60.0
+    min_x = mu - 60.0
+    min_x = 0.0 if min_x < 0.0 else min_x
+    dx = (max_x - min_x) / maxp
+    for ip in range(maxp):
+        e = - dx / 2 + dx * ip + min_x
+        lind_x = 2.0 * (e ** 0.5)
+        AA = 1.0 / (4 * np.cosh((e - mu) / 2.0) ** 2.0)
+        f1 = AA * lind_x
+        i12 = i12 + dx * f1
+    return i12
+
+
 def get_chemical_potential(rho: float, temp: float):
     ctf = (3.0 / 10.0) * (3.0 * np.pi ** 2) ** (2.0 / 3.0)
     t = np.array([2.0 * temp / (3.0 * np.pi ** 2.0 * rho) ** (2.0 / 3.0)])
@@ -138,3 +153,25 @@ def dfdr(np_points, h, f):
     df[np_points - finite_order:] = 0.0
 
     return df
+
+
+def check_kernel_table(kernel_table: dict, rho0: float,
+                       temperature: float) -> bool:
+    """
+    check whither we should new or renew the kernel table.
+    Ture --> not need renew
+    False --> need renew
+    """
+    if kernel_table is None: return False
+    if kernel_table["rho0"] != rho0: return False
+    if kernel_table["temperature"] != temperature: return False
+    return True
+
+
+def init_kernel_table(kernel_table: dict, max_eta: float, neta: int,
+                      delta_eta: float) -> bool:
+    if kernel_table is None:
+        kernel_table['max_eta'] = max_eta
+        kernel_table['neta'] = neta
+        kernel_table['delta_eta'] = delta_eta
+    return True
