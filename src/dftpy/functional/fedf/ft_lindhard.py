@@ -221,11 +221,13 @@ def peta_pe(rho_0, q_norm, q, i: int, j: int):
     kf = (3.0 * np.pi ** 2 * rho_0) ** (1.0 / 3.0)
     eta = q_norm / 2.0 / kf
     if i == j:
-        peta = eta
+        peta = eta / 3.0
     else:
         peta = np.zeros_like(eta)
 
     peta = peta - q[i] * q[j] / q_norm / 2.0 / kf
+    if q_norm[0, 0, 0] < 1e-10:
+        peta[0, 0, 0] = 0.0
     return peta
 
 
@@ -236,4 +238,6 @@ def fill_kernel_via_table(rho0, q_norm, eta_table, weta_table):
                             eta_table,
                             weta_table)
     kernel = kernel_flat.reshape(eta.shape)
+    if q_norm[0, 0, 0] < 1e-20:
+        kernel[0, 0, 0] = 0.0
     return kernel

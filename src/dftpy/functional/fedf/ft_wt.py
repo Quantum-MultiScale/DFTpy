@@ -48,7 +48,7 @@ def FT_WTStress(rho, ke_kernel_saved=None, temperature=1e-3,
                               temperature=temperature)
     kernel = ke_kernel_saved['kernel']
     kernel_table = ke_kernel_saved['kernel_table']
-    print(kernel_table)
+    #    print(kernel_table)
     """
     calcualte energy 
     """
@@ -65,6 +65,7 @@ def FT_WTStress(rho, ke_kernel_saved=None, temperature=1e-3,
     stress_ii = - 2.0 / 3.0 * energy
     for i in range(3):
         stress[i, i] = stress_ii
+    #    print("s1", stress)
     """
     stress part 2.1
     """
@@ -79,17 +80,21 @@ def FT_WTStress(rho, ke_kernel_saved=None, temperature=1e-3,
             peta = peta_pe(rho0, q_norm, q, i, j)
             s_kernel = kernel_1 * peta
             pot = (frhoa * s_kernel).ifft()
-            stress[i, j] += sum(rhob * pot)
+            stress[i, j] += np.sum(rhob * pot)
 
+    #    print("s2", stress)
     """
     stress part 2.2
     """
     kernel_2 = fill_kernel_via_table(rho0, q_norm,
                                      kernel_table['eta'],
                                      kernel_table['s_wetaprho'])
+    kernel_2 = kernel_2 * rho0
+    #    print("k2", kernel_2[6, 6, 6])
     pot = (frhoa * kernel_2).ifft()
     for i in range(3):
         stress[i, i] -= np.sum(pot * rhob)
+    #    print("s3", stress)
 
     stress *= rho.grid.dV / rho.grid.volume
 
@@ -139,7 +144,7 @@ def get_WT_kernel_table(kernel_table: dict, rho0: float, temperature: float,
     print("kernel table begin")
     for ii in range(0, neta):
         eta = ii * delta_eta
-        if (eta < 1e-20):
+        if (eta < 1e-10):
             kernel_table['weta'][ii] = 0.0
             continue
         kernel_table['eta'][ii] = eta
@@ -175,7 +180,7 @@ def _fill_kernel(rho, ke_kernel_saved: dict, rho0: float, temperature: float,
                                 ke_kernel_saved['kernel_table']['eta'],
                                 ke_kernel_saved['kernel_table']['weta'])
         kernel = kernel_flat.reshape(kernel.shape)
-        if q[0, 0, 0] < 1e-20:
+        if q[0, 0, 0] < 1e-10:
             kernel[0, 0, 0] = 0.0
         ke_kernel_saved['kernel'] = kernel
     else:
@@ -200,7 +205,10 @@ def get_WT_stress_kernel_table(kernel_table: dict, rho0: float,
                             kernel_table['max_eta'], kernel_table['neta'],
                             kernel_table['delta_eta'], kernel_table['maxp'],
                             kernel_table['alpha'], kernel_table['beta'])
-    kernel_table['s_wetaprho'] = dfdx_5p(*kernel_table_col, rho_1k)
+    kernel_table['s_wetaprho'] = dfdx_5p(kernel_table_col[0]['weta'],
+                                         kernel_table_col[1]['weta'],
+                                         kernel_table_col[2]['weta'],
+                                         kernel_table_col[3]['weta'], rho_1k)
     kernel_table['s_weta'] = dfdr(kernel_table['neta'],
                                   kernel_table['delta_eta'],
                                   kernel_table['weta'])
