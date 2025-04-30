@@ -1,7 +1,9 @@
 """
 the Lindhard function used in Nonlocal Finite temperature free energy functionals
 """
+from distutils.dir_util import remove_tree
 
+import numpy as np
 from dftpy.functional.fedf import ftk, ftk_dt, ftk_dt2
 from dftpy.functional.kedf.kernel import LindhardFunction
 
@@ -83,31 +85,33 @@ def ft_lindhard_drho(eta: float, rho: float, temp: float, maxp: int,
                      temp0=None) -> float:
     if eta < 1e-20: return 0.0
     beta = 1.0 / temp
+    chem_pot = get_chemical_potential(rho, temp)
     if temp0:
         beta0 = 1.0 / temp0
+        chem_pot0 = get_chemical_potential(rho, temp0)
     else:
         beta0 = beta
-    chemical_potential = get_chemical_potential(rho, temp)
+        chem_pot0 = chem_pot
     dchempot_drho = get_chemical_potential_drho(rho, temp)
     kf = (3.0 * np.pi ** 2 * rho) ** (1.0 / 3.0)
-    max_x = 60.0 / beta0 + chemical_potential
-    min_x = -60.0 / beta0 + chemical_potential
+    max_x = 60.0 / beta0 + chem_pot0
+    min_x = -60.0 / beta0 + chem_pot0
     min_x = 1e-20 if min_x < 0.0 else min_x
     dx = (max_x - min_x) / float(maxp)
-    lind = 0.0
-    for ip in range(1, maxp + 1):
-        e = -dx / 2 + dx * ip + min_x
-        fake_kf = np.sqrt(2.0 * e)
-        fake_eta = eta * kf / fake_kf
-        lind_x = 1.0 / LindhardFunction(fake_eta, 0.0, 0.0)
-        s1 = np.tanh((e - chemical_potential) * beta / 2.0)
-        c1 = np.cosh((e - chemical_potential) * beta / 2.0)
-        aa = beta * beta * s1 / (4.0 * c1 * c1) * dchempot_drho
-        lind += aa * lind_x
+    """
+    loop 
+    """
+    ip = np.arange(1, maxp + 1)
+    e = -dx / 2 + dx * ip + min_x
+    fake_kf = np.sqrt(2.0 * e)
+    fake_eta = eta * kf / fake_kf
+    lind_x = fake_kf / LindhardFunction(fake_eta, 0.0, 0.0)
+    s1 = np.tanh((e - chem_pot) * beta / 2.0)
+    c1 = np.cosh((e - chem_pot) * beta / 2.0)
+    aa = beta * beta * s1 / (4.0 * c1 * c1) * dchempot_drho
+    lind = np.sum(aa * lind_x * dx)
+
     return lind
-
-
-import numpy as np
 
 
 def dfdr(np_points, h, f):
@@ -194,3 +198,9 @@ def init_kernel_table(kernel_table: dict, max_eta: float, neta: int,
         kernel_table['neta'] = neta
         kernel_table['delta_eta'] = delta_eta
     return True
+
+
+def dfdx_5p(f0, f1, f2, f3, h: float):
+    df = f0 - 8.0 * f1 + 8.0 * f2 - f3
+    df = df / (12.0 * h)
+    return df
