@@ -20,7 +20,7 @@ from dftpy.functional.semilocal_xc import LibXC
 from dftpy.functional.fedf.ft_tf import FT_TF, FT_TFStress
 from dftpy.functional.fedf.ft_vW import FT_vW, FT_vWStress
 from dftpy.functional.fedf.ft_gga import FT_GGA, FT_GGAStress
-from dftpy.functional.fedf.ft_wt import FT_WT
+from dftpy.functional.fedf.ft_wt import FT_WT, FT_WTStress
 from dftpy.mpi import sprint
 from dftpy.utils import name2functions
 from dftpy.functional.kedf.lkt import LKT
@@ -107,7 +107,9 @@ KEDFEngines_Stress = {
     "FT_TF": FT_TFStress,
     "FT_VW": FT_vWStress,
     "FT_TFVW": ("FT_TF", "FT_VW"),
-    "FT_GGA": FT_GGAStress
+    "FT_GGA": FT_GGAStress,
+    "FT_WTNL": FT_WTStress,
+    "FT_WT": ("FT_TF", "VW", "FT_WTNL"),
 }
 
 
@@ -252,7 +254,9 @@ class KEDF(AbstractFunctional):
             if split: stress = np.zeros((3, 3))
             energy = self.energies[k]
             for i in range(0, nspin):
-                stress += func(rhol[i], energy=energy, **options) / nspin
+                stress += func(rhol[i], energy=energy,
+                               ke_kernel_saved=self.ke_kernel_saved,
+                               **options) / nspin
             if split: out[k] = stress
         if split: stress = out
         return stress
@@ -346,7 +350,7 @@ class NLGGA(AbstractFunctional):
             if self.level > 2:
                 pot = wn * func_stv.potential + func_stv.energydensity / nmax
                 pot += (
-                                   1 - wn) * func_gga.potential - func_gga.energydensity / nmax
+                               1 - wn) * func_gga.potential - func_gga.energydensity / nmax
                 pot += wn * func_nl.potential + func_nl.energydensity / nmax
             else:
                 pot = func_gga.potential
@@ -502,7 +506,7 @@ class MIXGGAS(AbstractFunctional):
         if 'V' in calcType:
             pot = interpolate_f * func_stv.potential + interpolate_df * func_stv.energydensity
             pot += (
-                               1 - interpolate_f) * func_gga.potential - interpolate_df * func_gga.energydensity
+                           1 - interpolate_f) * func_gga.potential - interpolate_df * func_gga.energydensity
             obj.potential = pot
 
         if 'E' in calcType:

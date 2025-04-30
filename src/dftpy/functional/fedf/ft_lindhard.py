@@ -192,11 +192,12 @@ def check_kernel_table(kernel_table: dict, rho0: float,
 
 
 def init_kernel_table(kernel_table: dict, max_eta: float, neta: int,
-                      delta_eta: float) -> bool:
+                      delta_eta: float, maxp: int) -> bool:
     if not kernel_table:
         kernel_table['max_eta'] = max_eta
         kernel_table['neta'] = neta
         kernel_table['delta_eta'] = delta_eta
+        kernel_table['maxp'] = maxp
     return True
 
 
@@ -204,3 +205,35 @@ def dfdx_5p(f0, f1, f2, f3, h: float):
     df = f0 - 8.0 * f1 + 8.0 * f2 - f3
     df = df / (12.0 * h)
     return df
+
+
+def peta_pe(rho_0, q_norm, q, i: int, j: int):
+    """
+    copy this code to latex or markdown, then you will know everthing
+    about this function
+    \frac{\part\eta((1-\epsilon)q,det(1+\epsilon)^{-1}\rho_0)}{\part\epsilon_{ij}}
+    =\frac{|(1-\epsilon)q|}{2(3\pi^2\rho_0)^{\frac{1}{3}}}det(1+\epsilon)^{\frac{1}{3}}
+    \\= \frac{1}{3}\delta_{ij}\eta(q,\rho_0)-\frac{\eta_i(q,\rho_0)\eta_j(q,\rho_0)}{\eta(q,\rho_0)}\\
+    \eta_i = \frac{q_i}{2(3\pi^2\rho_0)^{\frac{1}{3}}}
+
+    i,j in 0 , 1, 2 means,x,y,z
+    """
+    kf = (3.0 * np.pi ** 2 * rho_0) ** (1.0 / 3.0)
+    eta = q_norm / 2.0 / kf
+    if i == j:
+        peta = eta
+    else:
+        peta = np.zeros_like(eta)
+
+    peta = peta - q[i] * q[j] / q_norm / 2.0 / kf
+    return peta
+
+
+def fill_kernel_via_table(rho0, q_norm, eta_table, weta_table):
+    kf = (3.0 * np.pi ** 2 * rho0) ** (1.0 / 3.0)
+    eta = q_norm / 2.0 / kf
+    kernel_flat = np.interp(eta.flatten(),
+                            eta_table,
+                            weta_table)
+    kernel = kernel_flat.reshape(eta.shape)
+    return kernel

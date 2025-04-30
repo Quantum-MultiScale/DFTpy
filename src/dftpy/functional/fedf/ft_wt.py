@@ -35,19 +35,20 @@ def FT_WTEnergy(rho: DirectField, kernel, alpha=5.0 / 6.0, beta=5.0 / 6.0):
     return energy
 
 
-def FT_WTStress(rho, ke_kernel_saved, temperature=1e-3,
+def FT_WTStress(rho, ke_kernel_saved=None, temperature=1e-3,
                 **kwargs):
     """
     Finite Temperature WT Stress
     """
-    if ke_kernel_saved['kernel_table'] not in ke_kernel_saved:
+    if 'kernel_table' not in ke_kernel_saved:
         raise RuntimeError("please calculate energy first, "
                            "then calculate stress")
-    _check_stess_kernel_talbe(ke_kernel_saved['kernel_table'],
+    _check_stess_kernel_talbe(ke_kernel_saved,
                               rho0=np.mean(rho),
                               temperature=temperature)
     kernel = ke_kernel_saved['kernel']
     kernel_table = ke_kernel_saved['kernel_table']
+    print(kernel_table)
     """
     calcualte energy 
     """
@@ -67,10 +68,31 @@ def FT_WTStress(rho, ke_kernel_saved, temperature=1e-3,
     """
     stress part 2.1
     """
-
-    stress_ii = 0.0
+    rho0 = np.mean(rho)
+    q_norm = rho.grid.get_reciprocal().q
+    q = rho.grid.get_reciprocal().g
+    kernel_1 = fill_kernel_via_table(rho0, q_norm,
+                                     kernel_table['eta'],
+                                     kernel_table['s_weta'])
     for i in range(3):
-        stress[i, i] = stress_ii
+        for j in range(3):
+            peta = peta_pe(rho0, q_norm, q, i, j)
+            s_kernel = kernel_1 * peta
+            pot = (frhoa * s_kernel).ifft()
+            stress[i, j] += sum(rhob * pot)
+
+    """
+    stress part 2.2
+    """
+    kernel_2 = fill_kernel_via_table(rho0, q_norm,
+                                     kernel_table['eta'],
+                                     kernel_table['s_wetaprho'])
+    pot = (frhoa * kernel_2).ifft()
+    for i in range(3):
+        stress[i, i] -= np.sum(pot * rhob)
+
+    stress *= rho.grid.dV / rho.grid.volume
+
     return stress
 
 
@@ -103,7 +125,9 @@ def get_WT_kernel_table(kernel_table: dict, rho0: float, temperature: float,
                         max_eta: float, neta: int, delta_eta: float,
                         maxp=100000, alpha=5.0 / 6.0, beta=5.0 / 6.0) -> bool:
     if check_kernel_table(kernel_table, rho0, temperature): return False
-    init_kernel_table(kernel_table, max_eta, neta, delta_eta)
+    init_kernel_table(kernel_table, max_eta, neta, delta_eta, maxp)
+    kernel_table['alpha'] = alpha
+    kernel_table['beta'] = beta
     kf = (3.0 * np.pi ** 2 * rho0) ** (1.0 / 3.0)
     coef = np.pi ** 2.0 / (2.0 * beta * alpha) / rho0 ** (
             beta + alpha - 2.0) / kf
@@ -136,12 +160,6 @@ def _fill_kernel(rho, ke_kernel_saved: dict, rho0: float, temperature: float,
                  maxp=100000, alpha=5.0 / 6.0, beta=5.0 / 6.0):
     if 'kernel_table' not in ke_kernel_saved:
         ke_kernel_saved['kernel_table'] = {}
-        ke_kernel_saved['kernel_table']['max_eta'] = max_eta
-        ke_kernel_saved['kernel_table']['neta'] = neta
-        ke_kernel_saved['kernel_table']['delta_eta'] = delta_eta
-        ke_kernel_saved['kernel_table']['maxp'] = maxp
-        ke_kernel_saved['kernel_table']['alpha'] = alpha
-        ke_kernel_saved['kernel_table']['beta'] = beta
 
     kernel_table_update = get_WT_kernel_table(ke_kernel_saved['kernel_table'],
                                               rho0, temperature,
@@ -196,7 +214,7 @@ def _check_stess_kernel_talbe(ke_kernel_saved: dict, rho0: float,
 
     need_update = not check_kernel_table(ke_kernel_saved['kernel_table'],
                                          rho0, temperature)
-    if need_update:
+    if need_update or 's_weta' not in ke_kernel_saved['kernel_table']:
         get_WT_stress_kernel_table(ke_kernel_saved['kernel_table'], rho0,
                                    temperature)
     return True
