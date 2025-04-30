@@ -75,7 +75,7 @@ def ft_lindhard(eta: float, rho: float, temp: float, maxp: int,
     lind_x = fake_kf / LindhardFunction(fake_eta, 0.0, 0.0)
     aa = beta / (4 * np.cosh((e - chemical_potential) * beta / 2) ** 2.0)
     lind = np.sum(aa * lind_x * dx)
-    print("CCC")
+    # print("CCC")
     return lind
 
 
@@ -176,12 +176,12 @@ def check_kernel_table(kernel_table: dict, rho0: float,
     if not kernel_table:
         print("E1")
         return False
-    if abs(kernel_table['rho0'] - rho0) > 1e-12:
+    if abs(kernel_table['rho0'] - rho0) > 1e-10:
         print("E2")
         print("saved", kernel_table['rho0'])
         print("gaved", rho0)
         return False
-    if abs(kernel_table['temperature'] - temperature) > 1e-12:
+    if abs(kernel_table['temperature'] - temperature) > 1e-10:
         print("E3")
         return False
     return True

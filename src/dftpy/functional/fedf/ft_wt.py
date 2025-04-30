@@ -93,8 +93,8 @@ def get_WT_kernel_table(kernel_table: dict, rho0: float, temperature: float,
         kernel_table['eta'][ii] = eta
         chi_vw = 4.0 / 3.0 / (2.0 * eta) ** 2
         chi_lr = ft_lindhard(eta, rho0, temperature, maxp=maxp)
+        chi_lr = chi_lr / kf
         kernel_table['weta'][ii] = 1.0 / chi_lr - 1.0 / chi_vw - 1.0 / chi_tf
-        print("ii", ii, chi_tf, chi_vw, chi_lr, kernel_table['weta'][ii])
     print("kernel table end")
 
     kernel_table['weta'] = coef * kernel_table['weta']
@@ -122,7 +122,6 @@ def _fill_kernel(rho, ke_kernel_saved: dict, rho0: float, temperature: float,
         kernel_flat = np.interp(kernel_flat,
                                 ke_kernel_saved['kernel_table']['eta'],
                                 ke_kernel_saved['kernel_table']['weta'])
-        print(kernel[6, 6, 6])
         kernel = kernel_flat.reshape(kernel.shape)
         if q[0, 0, 0] < 1e-20:
             kernel[0, 0, 0] = 0.0
