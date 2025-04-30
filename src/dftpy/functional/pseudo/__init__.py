@@ -144,6 +144,11 @@ class LocalPseudo(AbstractLocalPseudo):
                         strf = self.ions.strf(reciprocal_grid, i)
                         v += self.vlines_core[key] * strf
             self._core_density = ReciprocalField(reciprocal_grid, griddata_3d=v).ifft(force_real=True)
+            ### Eliminate unphysical negative values
+            inte = (np.abs(self.core_density) - self.core_density).integral()
+            if inte>1e-5:
+                sprint('Warning', inte)
+            self._core_density[self._core_density < 0] = np.abs(self._core_density[self._core_density < 0]) 
         return self._core_density
 
     def __repr__(self):

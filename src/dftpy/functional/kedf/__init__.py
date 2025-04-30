@@ -93,12 +93,13 @@ KEDFEngines_Stress = {
 
 
 class KEDF(AbstractFunctional):
-    def __init__(self, name="WT", kedf = None, core_density=None, **kwargs):
+    def __init__(self, name="WT", kedf = None, core_density=None, pseudo=None, **kwargs):
         self.type = 'KEDF'
         self.name = kedf or name
         self.options = kwargs
         self.options['kedf'] = self.name
         self._core_density = core_density
+        self.pseudo = pseudo
         self.ke_kernel_saved = {
             "Kernel": None,
             "rho0": 0.0,
@@ -221,6 +222,15 @@ class KEDF(AbstractFunctional):
         else :
             functional = functional[key]
         return functional
+    def forces(self, density, pseudo = None, potential = None, **kwargs):
+        if pseudo is None : pseudo = self.pseudo
+        if pseudo is None : return None
+        options = copy.deepcopy(self.options)
+        options.update(kwargs)
+        if potential is None: potential = self.compute(density, calcType={"V"}, **options).potential
+        forces = pseudo.calc_force_cc(potential)
+        return forces
+
 
     def stress(self, density, name=None, kedf=None, split=False, **kwargs):
         if kedf : name = kedf
