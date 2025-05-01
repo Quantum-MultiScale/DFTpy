@@ -113,6 +113,8 @@ KEDFEngines_Stress = {
     "FT_GGA": FT_GGAStress,
     "FT_WTNL": FT_WTStress,
     "FT_WT": ("FT_TF", "VW", "FT_WTNL"),
+    "FT_XWMNL": FT_XWMStress,
+    "FT_XWM": ("FT_TF", "VW", "FT_XWMNL"),
 }
 
 
