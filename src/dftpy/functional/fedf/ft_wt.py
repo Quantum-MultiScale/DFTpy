@@ -5,7 +5,7 @@ from dftpy.functional.fedf.ft_lindhard import *
 from dftpy.field import DirectField
 from dftpy.functional.functional_output import FunctionalOutput
 
-__all__ = ['FT_WT', 'FT_WT']
+__all__ = ['FT_WT', 'FT_WTStress']
 
 
 def FT_WTPotential(rho, kernel, alpha=5.0 / 6.0, beta=5.0 / 6.0):
@@ -110,7 +110,7 @@ def FT_WT(rho, ke_kernel_saved, calcType={"E", "V"}, temperature=1e-3,
     # HARTREE2EV = Units.Ha
     # has changed in hartree
     # print( "temperature",temperature)
-    OutFunctional = FunctionalOutput(name="FT_TF")
+    OutFunctional = FunctionalOutput(name="FT_WT")
     rho0 = np.mean(rho)
     neta = 10000
     max_eta = 50.0
@@ -171,7 +171,7 @@ def _fill_kernel(rho, ke_kernel_saved: dict, rho0: float, temperature: float,
                                               max_eta, neta, delta_eta,
                                               maxp=maxp, alpha=alpha,
                                               beta=beta)
-    if kernel_table_update or (ke_kernel_saved['kernel'] is None):
+    if kernel_table_update or ke_kernel_saved.get('kernel') is None:
         tkf = 2.0 * (3.0 * np.pi ** 2 * rho0) ** (1.0 / 3.0)
         q = rho.grid.get_reciprocal().q
         kernel = q / tkf

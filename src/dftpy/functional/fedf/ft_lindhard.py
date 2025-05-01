@@ -23,6 +23,24 @@ def fermi__1_2_elegent(mu: float, maxp: int) -> float:
     return i12
 
 
+def fermi__2_elegent_drho(mu: float, temp, rho0, maxp: int) -> float:
+    i12 = 0.0
+    max_x = mu + 60.0
+    min_x = mu - 60.0
+    min_x = 0.0 if min_x < 0.0 else min_x
+    beta = 1.0 / temp
+    dx = (max_x - min_x) / maxp
+    dchem_drho = get_chemical_potential_drho(rho0, temp)
+    for ip in range(1, maxp + 1):
+        e = - dx / 2 + dx * ip + min_x
+        lind_x = 2.0 * (e ** 0.5)
+        s1 = np.tanh((e - mu) / 2.0)
+        c1 = np.cosh((e - mu) / 2.0)
+        aa = beta * s1 / (4.0 * c1 * c1) * dchem_drho
+        i12 = i12 + aa * lind_x * dx
+    return i12
+
+
 def get_chemical_potential(rho: float, temp: float):
     ctf = (3.0 / 10.0) * (3.0 * np.pi ** 2) ** (2.0 / 3.0)
     t = np.array([2.0 * temp / (3.0 * np.pi ** 2.0 * rho) ** (2.0 / 3.0)])

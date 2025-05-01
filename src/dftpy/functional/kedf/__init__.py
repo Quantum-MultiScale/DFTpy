@@ -21,6 +21,7 @@ from dftpy.functional.fedf.ft_tf import FT_TF, FT_TFStress
 from dftpy.functional.fedf.ft_vW import FT_vW, FT_vWStress
 from dftpy.functional.fedf.ft_gga import FT_GGA, FT_GGAStress
 from dftpy.functional.fedf.ft_wt import FT_WT, FT_WTStress
+from dftpy.functional.fedf.ft_xwm import FT_XWM, FT_XWMStress
 from dftpy.mpi import sprint
 from dftpy.utils import name2functions
 from dftpy.functional.kedf.lkt import LKT
@@ -78,6 +79,8 @@ KEDFEngines = {
     "FT_GGA": FT_GGA,
     "FT_WTNL": FT_WT,
     "FT_WT": ("FT_TF", "VW", "FT_WTNL"),
+    "FT_XWMNL": FT_XWM,
+    "FT_XWM": ("FT_TF", "VW", "FT_XWMNL")
 }
 
 
