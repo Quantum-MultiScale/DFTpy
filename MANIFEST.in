@@ -1,4 +1,0 @@
-include MANIFEST.in README.md LICENSE.txt
-include src/dftpy
-include scripts/*
-recursive-include src/dftpy *.json
