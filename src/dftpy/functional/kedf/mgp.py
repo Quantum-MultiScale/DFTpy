@@ -31,7 +31,10 @@ def MGP(
         **kwargs
 ):
     q = rho.grid.get_reciprocal().q
-    rho0 = rho.amean()
+    if "rho0" in kwargs:
+        rho0=kwargs["rho0"]
+    else:
+        rho0 = rho.amean()
     if ke_kernel_saved is None:
         KE_kernel_saved = {"Kernel": None, "rho0": 0.0, "shape": None}
     else:

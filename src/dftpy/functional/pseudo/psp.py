@@ -79,11 +79,10 @@ class PSP(BasePseudo):
             data = [line.split()[1:4] for line in lines[ibegin:iend]]
             data = np.asarray(data, dtype = np.float64)
             core_density = data[:, 2]
-            core_density = np.asarray(core_density, dtype = np.float64)
             core_density /= (4.0 * np.pi)
             self._core_density_grid = data[:,0]
             self._core_density = core_density
-        elif fchrg > 0.0 and self.infor['lloc'] is None:
+        elif fchrg > 0.0 and self.info['lloc'] is None:
             ibegin = 6+ (mmax + 1) * lloc + mmax
             iend = ibegin + mmax
             core_density = [line.split()[1:3] for line in lines[ibegin:iend]]
