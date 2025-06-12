@@ -6,6 +6,7 @@ from distutils.dir_util import remove_tree
 import numpy as np
 from dftpy.functional.fedf import ftk, ftk_dt, ftk_dt2
 from dftpy.functional.kedf.kernel import LindhardFunction
+from dftpy.time_data import timer
 
 
 def fermi__1_2_elegent(mu: float, maxp: int) -> float:
@@ -99,6 +100,7 @@ def ft_lindhard(eta: float, rho: float, temp: float, maxp: int,
     return lind
 
 
+@timer()
 def ft_lindhard_drho(eta: float, rho: float, temp: float, maxp: int,
                      temp0=None) -> float:
     if eta < 1e-20: return 0.0

@@ -5,6 +5,7 @@ from sympy.abc import kappa
 
 from dftpy.functional.functional_output import FunctionalOutput
 from dftpy.functional.fedf.ft_lindhard import *
+from dftpy.mpi import MP
 from dftpy.math_utils import PowerInt
 from dftpy.time_data import timer
 from dftpy.field import DirectField
@@ -194,7 +195,11 @@ def get_XWM_kernel_table(kernel_table: dict, rho0: float, temperature: float,
     k2 = np.zeros(neta)
 
     print("kernel table begin")
+    mp = MP()
+
     for ii in range(0, neta):
+        if ii % mp.size != mp.rank: continue
+        print("myii", ii, mp.rank)
         eta = ii * delta_eta
         if (eta < 1e-10):
             k1[ii] = 0.0
@@ -213,7 +218,8 @@ def get_XWM_kernel_table(kernel_table: dict, rho0: float, temperature: float,
                   + chi_vw + chi_tf_drho / chi_tf ** 2.0)
     #    print("ieta", eta, ii, chi_vw, chi_lr_drho, k2[ii])
     #    print("ieta2", eta, ii, kf_drho, kf, chi_tf, chi_lr0)
-
+    k1 = mp.vsum(k1)
+    k2 = mp.vsum(k2)
     k1 = k1 * fact1 * xwm_coe1
     k2 = k2 * fact1 * xwm_coe2
     xwm_c12 = xwm_beta * xwm_c12
