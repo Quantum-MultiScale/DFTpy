@@ -200,7 +200,7 @@ def check_kernel_table(kernel_table: dict, rho0: float,
     if not kernel_table:
         print("E1")
         return False
-    if abs(kernel_table['rho0'] - rho0) > 1e-10:
+    if abs(kernel_table['rho0'] - rho0) > 1e-9:
         print("E2")
         print("saved", kernel_table['rho0'])
         print("gaved", rho0)

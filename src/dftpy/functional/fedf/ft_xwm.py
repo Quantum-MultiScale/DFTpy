@@ -69,8 +69,8 @@ def FT_XWMStress(rho, ke_kernel_saved=None, temperature=1e-3, **kwargs):
         raise RuntimeError("please calculate energy first, "
                            "then calculate stress")
     _check_stess_kernel_talbe(ke_kernel_saved,
-                              rho0=np.mean(rho),
-                              temperature=temperature)
+                              rho0=rho.amean(),
+                              temperature=temperature, mp=rho.grid.mp)
 
     kernel1 = ke_kernel_saved['kernel1']
     kernel2 = ke_kernel_saved['kernel2']
@@ -144,7 +144,7 @@ def FT_XWM(rho, ke_kernel_saved=None, calcType={"E", "V"}, kappa=0.0,
     # print( "temperature",temperature)
 
     OutFunctional = FunctionalOutput(name="FT_XWM")
-    rho0 = np.mean(rho)
+    rho0 = rho.amean()
     neta = 10000
     max_eta = 50.0
     delta_eta = max_eta / (neta - 1)
@@ -164,7 +164,7 @@ def FT_XWM(rho, ke_kernel_saved=None, calcType={"E", "V"}, kappa=0.0,
 
 def get_XWM_kernel_table(kernel_table: dict, rho0: float, temperature: float,
                          max_eta: float, neta: int, delta_eta: float,
-                         maxp=100000, kappa=0.0, xwm_beta=1.0) -> bool:
+                         maxp=100000, kappa=0.0, xwm_beta=1.0, mp=None) -> bool:
     if check_kernel_table(kernel_table, rho0, temperature): return False
     init_kernel_table(kernel_table, max_eta, neta, delta_eta, maxp)
     kernel_table['kappa'] = kappa
@@ -194,12 +194,13 @@ def get_XWM_kernel_table(kernel_table: dict, rho0: float, temperature: float,
     k1 = np.zeros(neta)
     k2 = np.zeros(neta)
 
-    print("kernel table begin")
-    mp = MP()
+    # print("kernel table begin")
+    if mp is None:
+        mp = MP()
 
     for ii in range(0, neta):
         if ii % mp.size != mp.rank: continue
-        print("myii", ii, mp.rank)
+        # print("myii", ii, mp.rank)
         eta = ii * delta_eta
         if (eta < 1e-10):
             k1[ii] = 0.0
@@ -218,6 +219,7 @@ def get_XWM_kernel_table(kernel_table: dict, rho0: float, temperature: float,
                   + chi_vw + chi_tf_drho / chi_tf ** 2.0)
     #    print("ieta", eta, ii, chi_vw, chi_lr_drho, k2[ii])
     #    print("ieta2", eta, ii, kf_drho, kf, chi_tf, chi_lr0)
+    kernel_table['eta'] = mp.vsum(kernel_table['eta'])
     k1 = mp.vsum(k1)
     k2 = mp.vsum(k2)
     k1 = k1 * fact1 * xwm_coe1
@@ -227,7 +229,7 @@ def get_XWM_kernel_table(kernel_table: dict, rho0: float, temperature: float,
     kernel_table['weta1'] = k1 + xwm_c12 * k2
     kernel_table['weta2'] = xwm_c11 * k2
 
-    # print("66", k1[6], k2[6])
+    # print("66", k1[0], k2[0], mp.rank)
 
     return True
 
@@ -239,10 +241,10 @@ def _fill_kernel(rho, ke_kernel_saved: dict, rho0: float, temperature: float,
         ke_kernel_saved['kernel_table'] = {}
 
     kernel_table_update = get_XWM_kernel_table(ke_kernel_saved['kernel_table'],
-                                               rho0, temperature,
-                                               max_eta, neta, delta_eta,
-                                               maxp=maxp, kappa=kappa,
-                                               xwm_beta=xwm_beta)
+                                               rho0, temperature, max_eta, neta,
+                                               delta_eta, maxp=maxp,
+                                               kappa=kappa, xwm_beta=xwm_beta,
+                                               mp=rho.grid.mp)
 
     if kernel_table_update or ke_kernel_saved.get('kernel1') is None:
         q_norm = rho.grid.get_reciprocal().q
@@ -263,7 +265,8 @@ def _fill_kernel(rho, ke_kernel_saved: dict, rho0: float, temperature: float,
 
 
 def get_XWM_stress_kernel_table(kernel_table: dict, rho0: float,
-                                temperature: float, delta_rho=1e-5, ft_dx=1000):
+                                temperature: float, delta_rho=1e-5, ft_dx=1000,
+                                mp=None):
     kernel_table_col = [{}, {}, {}, {}]
     if rho0 < 2.0 * delta_rho:
         rho_1k = rho0 / ft_dx
@@ -279,10 +282,10 @@ def get_XWM_stress_kernel_table(kernel_table: dict, rho0: float,
         rhoh13 = rho_h[i] ** (1.0 / 3.0)
         me1 = kernel_table['max_eta'] * rho013 / rhoh13
         de1 = kernel_table['delta_eta'] * rho013 / rhoh13
-        get_XWM_kernel_table(kernel_table_col[i], rho_h[i], temperature,
-                             me1, kernel_table['neta'],
-                             de1, kernel_table['maxp'],
-                             kernel_table['kappa'], kernel_table['xwm_beta'])
+        get_XWM_kernel_table(kernel_table_col[i], rho_h[i], temperature, me1,
+                             kernel_table['neta'], de1, kernel_table['maxp'],
+                             kernel_table['kappa'], kernel_table['xwm_beta'],
+                             mp=mp)
 
     kernel_table['s_wetaprho1'] = dfdx_5p(kernel_table_col[0]['weta1'],
                                           kernel_table_col[1]['weta1'],
@@ -303,7 +306,7 @@ def get_XWM_stress_kernel_table(kernel_table: dict, rho0: float,
 
 
 def _check_stess_kernel_talbe(ke_kernel_saved: dict, rho0: float,
-                              temperature: float):
+                              temperature: float, mp=None):
     if 'kernel_table' not in ke_kernel_saved:
         raise RuntimeError("error kernel_table")
 
@@ -312,6 +315,6 @@ def _check_stess_kernel_talbe(ke_kernel_saved: dict, rho0: float,
 
     if need_update or 's_weta1' not in ke_kernel_saved['kernel_table']:
         get_XWM_stress_kernel_table(ke_kernel_saved['kernel_table'], rho0,
-                                    temperature)
+                                    temperature, mp=mp)
 
     return True
