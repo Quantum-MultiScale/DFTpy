@@ -4,6 +4,7 @@ from scipy import optimize as sopt
 import dftpy.mpi.mp_serial as mps
 from dftpy.constants import environ
 from scipy.optimize._linesearch import line_search_wolfe1, line_search_wolfe2
+from scipy.optimize._dcsrch import DCSRCH
 
 if environ["FFTLIB"] == "pyfftw":
     """
@@ -49,6 +50,24 @@ def line_search(func, x=0.0, pk=1.0, method='wolfe', func0=None, c1=1e-4, c2=0.9
     else:
         x = None
     output = (x, values[-1], values[1], fobj.results)
+    return output
+
+def line_search_dcsrch(func, alpha0=None, c1=1e-4, c2=0.9, amax=1.0, amin=0.0, xtol=1e-14,maxiter=100):
+    if isinstance(func, ObjectiveGradient):
+        fobj = func
+    else:
+        fobj = ObjectiveGradient(func)
+
+    if alpha0 is None:
+        alpha0 = 0.2
+
+    func0 = fobj.f(0.0)
+    derfunc0 = fobj.fprime(0.0)
+
+    dscrch = DCSRCH(fobj.f, fobj.fprime,c1, c2,  xtol, amin,amax)
+    value = dscrch(alpha0,func0,derfunc0,maxiter=maxiter)
+    x = value[0]
+    output = (x,value[-1], value[1], fobj.results)
     return output
 
 def _line_search_vector(func, alpha0, method='wolfe', func0=None, repeat=1, **kwargs):
