@@ -4,6 +4,7 @@ import numpy as np
 from dftpy.functional.fedf.ft_lindhard import *
 from dftpy.field import DirectField
 from dftpy.functional.functional_output import FunctionalOutput
+from dftpy.mpi import MP
 
 __all__ = ['FT_WT', 'FT_WTStress']
 
