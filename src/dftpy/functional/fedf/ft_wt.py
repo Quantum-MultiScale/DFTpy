@@ -111,7 +111,7 @@ def FT_WT(rho, ke_kernel_saved, calcType={"E", "V"}, temperature=1e-3,
     # has changed in hartree
     # print( "temperature",temperature)
     OutFunctional = FunctionalOutput(name="FT_WT")
-    rho0 = np.mean(rho)
+    rho0 = rho.amean()
     neta = 10000
     max_eta = 50.0
     delta_eta = max_eta / (neta - 1)
@@ -144,6 +144,7 @@ def get_WT_kernel_table(kernel_table: dict, rho0: float, temperature: float,
     kernel_table['weta'] = np.zeros(neta)
     print("kernel table begin")
     if mp is None:
+        print("mp is none")
         mp = MP()
     for ii in range(0, neta):
         if ii % mp.size != mp.rank: continue
