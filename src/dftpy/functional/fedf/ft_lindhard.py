@@ -1,7 +1,6 @@
 """
 the Lindhard function used in Nonlocal Finite temperature free energy functionals
 """
-from distutils.dir_util import remove_tree
 
 import numpy as np
 from dftpy.functional.fedf import ftk, ftk_dt, ftk_dt2
@@ -146,8 +145,6 @@ def dfdr(np_points, h, f):
         Grid size.
     f : ndarray
         Function values at the grid points.
-    zion : float, optional
-        Nuclear charge, if provided modify the last few df values.
 
     Returns
     -------

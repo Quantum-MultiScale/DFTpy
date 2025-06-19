@@ -16,7 +16,8 @@ def get_vW_kedensity(rho):
     """
     sqrt_rho = rho ** 0.5
     srhoGrad = sqrt_rho.gradient()
-    eden = (PowerInt(srhoGrad[0], 2) + PowerInt(srhoGrad[1], 2) + PowerInt(srhoGrad[2], 2)) / 2.0
+    eden = (PowerInt(srhoGrad[0], 2) + PowerInt(srhoGrad[1], 2) + PowerInt(
+        srhoGrad[2], 2)) / 2.0
     return eden
 
 
