@@ -242,9 +242,12 @@ def peta_pe(rho_0, q_norm, q, i: int, j: int):
     else:
         peta = np.zeros_like(eta)
 
-    peta = peta - q[i] * q[j] / q_norm / 2.0 / kf
+    mask = q_norm > 1e-10
+
+    peta[mask] = peta[mask] - q[i][mask] * q[j][mask] / q_norm[mask] / 2.0 / kf
     if q_norm[0, 0, 0] < 1e-10:
         peta[0, 0, 0] = 0.0
+
     return peta
 
 
@@ -252,7 +255,8 @@ def peta_peS(rho_0, q_norm, q, i: int, j: int):
     kf = (3.0 * np.pi ** 2 * rho_0) ** (1.0 / 3.0)
     eta = q_norm / 2.0 / kf
     peta = np.zeros_like(eta)
-    peta = peta - q[i] * q[j] / q_norm / 2.0 / kf
+    mask = q_norm > 1e-10
+    peta[mask] = peta[mask] - q[i][mask] * q[j][mask] / q_norm[mask] / 2.0 / kf
     if q_norm[0, 0, 0] < 1e-10:
         peta[0, 0, 0] = 0.0
     return peta
