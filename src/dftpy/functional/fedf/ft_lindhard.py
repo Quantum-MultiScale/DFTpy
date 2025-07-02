@@ -195,15 +195,15 @@ def check_kernel_table(kernel_table: dict, rho0: float,
     False --> need renew
     """
     if not kernel_table:
-        print("E1")
+        # print("E1")
         return False
     if abs(kernel_table['rho0'] - rho0) > 1e-9:
-        print("E2")
-        print("saved", kernel_table['rho0'])
-        print("gaved", rho0)
+        # print("E2")
+        # print("saved", kernel_table['rho0'])
+        # print("gaved", rho0)
         return False
     if abs(kernel_table['temperature'] - temperature) > 1e-10:
-        print("E3")
+        # print("E3")
         return False
     return True
 

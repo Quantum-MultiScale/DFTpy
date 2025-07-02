@@ -143,7 +143,7 @@ def get_WT_kernel_table(kernel_table: dict, rho0: float, temperature: float,
     chi_tf = 0.5 * (2.0 * temperature) ** (0.5) * chi_tf / kf
     kernel_table['eta'] = np.zeros(neta)
     kernel_table['weta'] = np.zeros(neta)
-    print("kernel table begin")
+    # print("kernel table begin")
     if mp is None:
         print("mp is none")
         mp = MP()
@@ -160,7 +160,7 @@ def get_WT_kernel_table(kernel_table: dict, rho0: float, temperature: float,
         kernel_table['weta'][ii] = 1.0 / chi_lr - 1.0 / chi_vw - 1.0 / chi_tf
     kernel_table['eta'] = mp.vsum(kernel_table['eta'])
     kernel_table['weta'] = mp.vsum(kernel_table['weta'])
-    print("kernel table end")
+    # print("kernel table end")
 
     kernel_table['weta'] = coef * kernel_table['weta']
     kernel_table['rho0'] = rho0
