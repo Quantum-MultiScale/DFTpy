@@ -245,6 +245,15 @@ def LibXC(density, libxc=None, calcType={"E", "V"}, core_density=None, sigma = N
     out_functional = None
     for value in libxc :
         func = LibXCFunctional(value, polarization)
+        libxc_ext_params = kwargs.get('libxc_ext_params', {})
+        if libxc_ext_params:
+            if isinstance(libxc_ext_params, dict):
+                ext_params = libxc_ext_params.get(value, None)
+            else:
+                ext_params = libxc_ext_params
+            if ext_params:
+                func.set_ext_params(ext_params)
+
         out = func.compute(inp, **kargs)
         if out_functional is not None :
             sa = Get_LibXC_Output(out, density, gradient=gradient, **kwargs)
