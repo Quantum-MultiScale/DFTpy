@@ -47,6 +47,7 @@ docs = [
 	"sphinx-panels",
 	"sphinx-copybutton",
 	"sphinx-inline-tabs",
+	"sphinx_design",
 	"nbsphinx",
 	"pandoc"
 ]

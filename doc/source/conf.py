@@ -3,7 +3,7 @@ import sphinx_rtd_theme
 project = 'DFTpy'
 copyright = '2019-2023, Pavanello Research Group'
 author = 'Pavanello Research Group'
-release = '2.0.0'
+release = '2.2.0dev'
 
 source_suffix = '.rst'
 master_doc = 'index'
@@ -37,7 +37,9 @@ html_theme_options = {
 
 latex_show_urls = 'inline'
 latex_show_pagerefs = True
-latex_documents = [('index', not True)]
+latex_engine = 'xelatex'
+# latex_documents = [('index', 'DFTpy.tex', 'DFTpy', 'DFTpy-Developers', 'manual')]
+latex_documents = [('index', 'DFTpy.tex', 'DFTpy', 'DFTpy-Developers', 'howto', not True)]
 
 
 #Add external links to source code
