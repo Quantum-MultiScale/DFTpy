@@ -63,6 +63,7 @@ def get_chemical_potential_drho(rho: float, temp: float):
     return pot * ctf
 
 
+@timer()
 def ft_lindhard(eta: float, rho: float, temp: float, maxp: int,
                 temp0=None) -> float:
     if eta < 1e-20: return 0.0
