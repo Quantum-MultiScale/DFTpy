@@ -130,17 +130,21 @@ def get_Fs(s2, functional: str = "LKT", need_ds2=False):
     elif functional == "VT84F":
         mu = 2.778
         a = mu - 40.0 / 27.0
-        Fs = 1 - mu * s2 * np.exp(-a * s2) / (1.0 + mu * s2) + (
-                1.0 - np.exp(-a * s2 * s2)) * (
-                     1.0 / s2 - 1.0) + 5.0 / 3.0 * s2
+        safe_s2 = np.clip(s2, 1e-15, 500)
+        Fs = 1 - mu * safe_s2 * np.exp(-a * safe_s2) / (1.0 + mu * safe_s2) + (
+                1.0 - np.exp(-a * safe_s2 * safe_s2)) * (
+                     1.0 / safe_s2 - 1.0) + 5.0 / 3.0 * safe_s2
         if need_ds2:
-            Fs_ds2 = (2.0 * a * (1.0 / s2 - 1.0) * s2 * np.exp(-a * s2 * s2)
-                      - (1.0 - np.exp(-a * s2 * s2)) / s2 / s2
-                      + mu * mu * s2 * np.exp(-a * s2) / (mu * s2 + 1.0) / (
-                              mu * s2 + 1.0)
-                      - mu * np.exp(-a * s2) / (mu * s2 + 1.0)
-                      + a * mu * s2 * np.exp(-a * s2) / (
-                              mu * s2 + 1.0) + 5.0 / 3.0)
+            Fs_ds2 = (2.0 * a * (1.0 / safe_s2 - 1.0) * safe_s2 * np.exp(
+                -a * safe_s2 * safe_s2)
+                      - (1.0 - np.exp(
+                        -a * safe_s2 * safe_s2)) / safe_s2 / safe_s2
+                      + mu * mu * safe_s2 * np.exp(-a * safe_s2) / (
+                              mu * safe_s2 + 1.0) / (
+                              mu * safe_s2 + 1.0)
+                      - mu * np.exp(-a * safe_s2) / (mu * safe_s2 + 1.0)
+                      + a * mu * safe_s2 * np.exp(-a * safe_s2) / (
+                              mu * safe_s2 + 1.0) + 5.0 / 3.0)
     elif functional == "VW":
         Fs = 5.0 / 3.0 * s2
         if need_ds2:
