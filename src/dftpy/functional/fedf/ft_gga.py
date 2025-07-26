@@ -156,7 +156,7 @@ def get_Fs(s2, functional: str = "LKT", need_ds2=False):
             Fs_ds2 = (5.0 / 3.0)
 
     elif functional == "TF":
-        Fs = 0.0 * s2
+        Fs = 1.0
         if need_ds2:
             Fs_ds2 = 0.0 * s2
 
