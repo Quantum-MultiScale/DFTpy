@@ -2,7 +2,7 @@ import numpy as np
 from functools import partial
 from dftpy.mpi import sprint
 from dftpy.field import DirectField
-from dftpy.math_utils import Brent, minimize, line_search
+from dftpy.math_utils import Brent, minimize, line_search,line_search_dcsrch
 from dftpy.math_utils import LBFGS
 from dftpy.time_data import TimeData, timer
 from abc import ABC, abstractmethod
@@ -280,7 +280,7 @@ class Optimization(AbstractOptimization):
         return [value, grad, newphi, f]
 
     @timer('Optimize')
-    def optimize_rho(self, guess_rho=None, guess_phi = None, lphi = False, lsfun="line_search"):
+    def optimize_rho(self, guess_rho=None, guess_phi = None, lphi = False, lsfun="line_search_dcsrch"):
         if guess_rho is None and self.rho is None:
             raise AttributeError("Must provide a guess density")
         elif guess_rho is not None :
@@ -389,8 +389,19 @@ class Optimization(AbstractOptimization):
                 algorithm=self.optimization_options["algorithm"],
                 vector=self.optimization_options["vector"],
             )
-
-            if lsfun == "line_search":
+            if lsfun == "line_search_dcsrch" :
+                func0 = fun_value_deriv(0.0, func=func)
+                NumLineSearch = 1
+                theta,task,_,valuederiv = line_search_dcsrch(
+                    fun_value_deriv,
+                    alpha0=theta,
+                    c1=c1,
+                    c2=c2,
+                    amax=np.pi,
+                    amin=0.0,
+                    xtol=xtol,
+                )
+            elif lsfun == "line_search":
                 func0 = fun_value_deriv(0.0, func=func)
                 theta, task, NumLineSearch, valuederiv = line_search(
                     fun_value_deriv,
