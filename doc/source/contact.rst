@@ -16,6 +16,7 @@ On-line
 DFTpy is actively developed by the following groups:
  - `Pavanello Research Group <http://sites.rutgers.edu/prg>`_.
  - `Mi and Shao groups at Jilin University <https://phy.jlu.edu.cn/>`_
+ - `Quantum MultiScale collaboration <http://www.quantum-multiscale.org>`_
 
 GitHub
 ======
