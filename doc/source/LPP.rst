@@ -1,6 +1,6 @@
 
-Local Pseudopotentials (LPPs) for OF-DFT
-========================================
+Local Pseudopotentials
+======================
 
 Some background
 ---------------
