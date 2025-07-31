@@ -1,8 +1,8 @@
 import sys
 import sphinx_rtd_theme
 project = 'DFTpy'
-copyright = '2019-2023, Pavanello Research Group'
-author = 'Pavanello Research Group'
+copyright = '2019-2025, Pavanello Research Group'
+author = 'Pavanello Research Group & Xuecheng Shao'
 release = '2.2.0dev'
 
 source_suffix = '.rst'
