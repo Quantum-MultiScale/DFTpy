@@ -1,37 +1,32 @@
-========
-Contacts
-========
+=======
+Contact
+=======
 
 DFTpy Developers
 ================
 
 Feel free to contact the developers:
  - `Xuecheng Shao <https://sites.rutgers.edu/prg/people/xuecheng-shao/>`_
- - `Kaili Jiang <https://sites.rutgers.edu/prg/people/kaili-jiang/>`_
  - `Michele Pavanello <https://sasn.rutgers.edu/about-us/faculty-staff/michele-pavanello>`_
- - `Alessandro Genova <mailto: ales.genova@gmail.com>`_
+ - `Valeria Rios Vargas <https://sites.rutgers.edu/prg/people/valeria-rios/>`_
 
-Find out more about the `Pavanello Research Group <http://sites.rutgers.edu/prg>`_. 
+On-line
+=======
 
-DFTpy Forum
-===========
+DFTpy is actively developed by the following groups:
+ - `Pavanello Research Group <http://sites.rutgers.edu/prg>`_.
+ - `Mi and Shao groups at Jilin University <https://phy.jlu.edu.cn/>`_
 
-Feel free to ask questions and browse for answers on the DFTpy forum
-
-.. button-link:: https://lists.rutgers.edu/mm3/archives/list/dftpy_forum@email.rutgers.edu/
-   :color: secondary
-   :outline:
-
-    DFTpy Forum
-
-
-GitLab
+GitHub
 ======
 
-Feel free to create new issues, merge requests or fork your own `DFTpy` on DFTpy's `GitLab` page: 
+Feel free to create new issues, merge requests or fork your own `DFTpy` on our gitlab page: https://github.com/Quantum-MultiScale/DFTpy
 
-.. button-link:: https://gitlab.com/pavanello-research-group/dftpy
-   :color: secondary
-   :outline:
+Make sure to let us know about your developments!
 
-   DFTpy GitLab repo
+References
+==========
+
+DFTpy
+-----
+ - Shao, X., Jiang, K., Mi, W., Genova, A., & Pavanello, M. (2021). DFTpy: An efficient and object‐oriented platform for orbital‐free DFT simulations. Wiley Interdisciplinary Reviews: Computational Molecular Science, 11(1), e1482. (https://doi.org/10.1002/wcms.1482)

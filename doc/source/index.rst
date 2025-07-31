@@ -3,30 +3,20 @@
 DFTpy: Density Functional Theory with Python
 ============================================
 
-++++++++++++++
-What is DFTpy?
-++++++++++++++
-
-DFTpy_ is an orbital-free Density Functional Theory (OF-DFT) code based on a plane-wave expansion of the electron density developed by PRG_ at `Rutgers University-Newark <http://sasn.rutgers.edu>`_.
+DFTpy_ is an orbital-free Density Functional Theory code based on a plane-wave expansion of the electron density entirely coded in Python_. DFTpy makes it easy to develop nonstandard workflows and new electronic structure methods.
 
 .. _Python: https://www.python.org
-.. _DFTpy: http://dftpy.rutgers.edu
-.. _PRG: https://sites.rutgers.edu/prg
-
-++++++++++++++
-In these docs:
-++++++++++++++
-
+.. _DFTpy: https://dftpy.rutgers.edu
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    contact
    install
+   ofdft
+   LPP
    tutorials/tutorials
    releases
-   ofdft
-   Pseudopotentials
    faq
 
 

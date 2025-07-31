@@ -7,7 +7,7 @@ Frequently Asked Questions
 How do I request new implementations in DFTpy?
 ----------------------------------------------
 
-.. button-link:: https://gitlab.com/pavanello-research-group/dftpy/-/issues
+.. button-link:: https://github.com/Quantum-MultiScale/DFTpy/issues
     
    Submit an issue on GitLab
 
