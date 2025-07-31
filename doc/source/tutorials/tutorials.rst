@@ -24,12 +24,18 @@ OFDFT
 Local Pseudopotentials
 ----------------------
 
-   - `Build your own LPP <jupyter/lpps.ipynb>`_.
+.. toctree::
+   :maxdepth: 1
+
+   jupyter/lpps
 
 Spin unrestricted calculation
 -----------------------------
 
-   - `Spin unrestricted calculation of Al <jupyter/Al-nspin_dftpy_dev.ipynb>`_.
+.. toctree::
+   :maxdepth: 1
+
+   jupyter/Al-nspin_dftpy_dev
 
 TDDFT
 -----
@@ -42,5 +48,11 @@ TDDFT
 Do it on a Jupyter Notebook!
 ----------------------------
 
-  - `Density Optimization <jupyter/density_optimization.ipynb>`_.
-  - `TD-OFDFT <jupyter/td-ofdft-tutorial.ipynb>`_.
+.. toctree::
+   :maxdepth: 1
+
+   jupyter/density_optimization
+   jupyter/td-ofdft-tutorial
+
+
+
