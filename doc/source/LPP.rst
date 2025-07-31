@@ -2,6 +2,8 @@
 Local Pseudopotentials (LPPs) for OF-DFT
 ========================================
 
+Some background
+---------------
 
 Orbital-Free Density Functional Theory (OF-DFT) is an electronic structure method based solely on the electron density. In Kohn-Sham DFT pseudopotentials typically include a nonlocal part, which requires the Kohn-Sham orbitals to be evaluated. Due to the absence of Kohn-Sham orbitals in OF-DFT, only local pseudopotentials can be employed. 
 
@@ -15,6 +17,9 @@ Several local pseudopotentials have been developed and successfully applied to s
 
 The `PRG <https://sites.rutgers.edu/prg>`_ recently derived a new set of local pseudopotentials for transition metal elements which is available below (PGBRV and PPSL as they are based on the `GBRV <https://www.physics.rutgers.edu/gbrv/>`_ and `PSL <https://dalcorso.github.io/pslibrary/>`_ ultrasoft pseudopotentials). The new pseudos can be constructed for any element by following this `tutorial <tutorials/jupyter/lpps.ipynb>`_. The formalism behind this new class of pseudopotentials is described `here <>`_.
 
+
+Download LPPs
+-------------
 
 .. raw:: html
 

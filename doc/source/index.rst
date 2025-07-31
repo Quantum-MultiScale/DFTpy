@@ -14,8 +14,10 @@ DFTpy_ is an orbital-free Density Functional Theory code based on a plane-wave e
    contact
    install
    ofdft
+   LPP
    tutorials/tutorials
    releases
+   faq
 
 
 
