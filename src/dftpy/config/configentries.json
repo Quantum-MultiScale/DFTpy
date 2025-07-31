@@ -233,7 +233,7 @@
     },
     "kedf": {
       "comment": "The type of KEDF. GGA functionals are available with keywords GGA and LIBXC.",
-      "options": "TF, GGA, LIBXC, vW, TFvW, WT, SM, FP, MGP, MGPA, MGPG, LMGP, LMGPA, LMGPG",
+      "options": "TF, GGA, LIBXC, vW, TFvW, WT, SM, FP, MGP, MGPA, MGPG, LMGP, LMGPA, LMGPG, LWT, HC, revHC, WTE",
       "type": "ustr",
       "default": "WT"
     },

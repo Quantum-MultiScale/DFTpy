@@ -75,6 +75,8 @@ def gen_config_rst():
             fstr = '\n'
             fstr += '{0}\n'.format(section)
             fstr += '-----------------\n\n'.format(section)
+            if not isinstance(configentries[section], dict):
+                configentries[section] = {'comment': configentries[section]}
             if 'comment' in configentries[section] :
                 item = configentries[section]['comment']
                 lines = str(item.default)
