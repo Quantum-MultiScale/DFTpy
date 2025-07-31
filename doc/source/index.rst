@@ -11,10 +11,11 @@ DFTpy_ is an orbital-free Density Functional Theory code based on a plane-wave e
 .. toctree::
    :maxdepth: 2
 
-   source/contact
-   source/install
-   source/tutorials/tutorials
-   source/releases
+   contact
+   install
+   ofdft
+   tutorials/tutorials
+   releases
 
 
 

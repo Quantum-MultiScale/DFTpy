@@ -43,14 +43,14 @@ Using pip can easy install the release version of DFTpy from `PyPI <https://pypi
 Installation from source
 ========================
 
-You can get the source from `gitlab <https://gitlab.com/pavanello-research-group/dftpy>`_.::
+You can get the source from `github  <https://github.com/Quantum-MultiScale/DFTpy>`_.::
 
-    $ git clone https://gitlab.com/pavanello-research-group/dftpy.git
+    $ git clone git@github.com:Quantum-MultiScale/DFTpy.git
     $ python -m pip install ./dftpy
 
 Or in one line::
     
-    $ python -m pip install git+https://gitlab.com/pavanello-research-group/dftpy.git
+    $ python -m pip install git+git@github.com:Quantum-MultiScale/DFTpy.git
 
 
 You also can install all the optional packages with::
