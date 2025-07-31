@@ -59,7 +59,6 @@ Download LPPs
     }
     </style>
 
-    <h3>Choose pseudopotential type:</h3>
     <select id="pseudopotentials">
         <option value="PGBRV02">PGBRV02</option>
         <option value="PPSL02">PPSL02</option>
