@@ -26,7 +26,7 @@ def FT_GGAPotential(rho, FT_T, functional: str = "LKT"):
         hx = kes * gtot[icar]
         hx_g = hx.fft()
         hx_g = 1j * g[icar] * hx_g
-        hx = hx_g.ifft()
+        hx = hx_g.ifft(force_real=True)
         kes2 = kes2 + hx
 
     pot = vke - kes2
