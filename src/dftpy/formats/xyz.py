@@ -1,6 +1,7 @@
 import numpy as np
 import re
 from dftpy.ions import Ions
+from ase.atom import Atom
 
 """
 Ref :
@@ -32,7 +33,11 @@ def read_xyz(infile, **kwargs):
         pos.append(list(map(float, line[1:4])))
     pos = np.asarray(pos)
 
-    ions = Ions(symbols=symbols, positions=pos, cell=lattice, units = 'ase')
+    #ions = Ions(symbols=symbols, positions=pos, cell=lattice, units = 'ase')
+
+    atoms = Atoms(symbols=symbols, positions=pos, cell=lattice)
+    ions = Ions()
+    ions.from_ase(atoms)
 
     if not hasattr(infile, 'close'): fh.close()
     return ions
