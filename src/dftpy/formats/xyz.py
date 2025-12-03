@@ -1,7 +1,7 @@
 import numpy as np
 import re
 from dftpy.ions import Ions
-from ase.atom import Atom
+from ase.atoms import Atoms
 
 """
 Ref :
