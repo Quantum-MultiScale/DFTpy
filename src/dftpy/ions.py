@@ -54,6 +54,7 @@ class Ions(Atoms):
         "has",
         "repeat",
         "copy",
+        "set_constraint",
     ]
     allowed_attributes = [
         "init_options",
@@ -171,7 +172,7 @@ class Ions(Atoms):
         self.set_initial_charges(default(charges, 0.0))
         self._pbc = np.array([True, True, True], dtype=bool)
         self.set_pbc(pbc)
-        self._constraints = None
+        self._constraints = []
         self._calc = None
 
         if info is None:
@@ -183,7 +184,6 @@ class Ions(Atoms):
         atoms = Atoms(
             symbols=self.symbols,
             positions=self.get_positions() * Units.Bohr,
-            # numbers=self.numbers,d
             tags=self.get_tags(),
             magmoms=self.get_initial_magnetic_moments() * (Units.A * Units.Bohr ** 2),
             charges=self.get_initial_charges(),
@@ -199,7 +199,6 @@ class Ions(Atoms):
         ions = Ions(
             symbols=atoms.symbols,
             positions=atoms.get_positions() / Units.Bohr,
-            # numbers=atoms.numbers,
             tags=atoms.get_tags(),
             magmoms=atoms.get_initial_magnetic_moments() / (Units.A * Units.Bohr ** 2),
             charges=atoms.get_initial_charges(),
@@ -207,6 +206,7 @@ class Ions(Atoms):
             celldisp=atoms.get_celldisp() / Units.Bohr,
             info=atoms.info,
         )
+        #ions._constraints=[]
         return ions
 
     def get_ncharges(self):
@@ -288,4 +288,8 @@ class Ions(Atoms):
         return zval
 
     def set_constraint(self, constraints):
-        raise AttributeError(f"Unsupported attribute `constraints` in {self.__class__.__name__}. Please use 'to_ase' method to convert from ASE object.")
+        #raise AttributeError(f"Unsupported attribute `constraints` in {self.__class__.__name__}. Please use 'to_ase' method to convert from ASE object.")
+        if constraints is not None:
+            self._constraints=constraints
+        else:
+            self._constraints=[]
