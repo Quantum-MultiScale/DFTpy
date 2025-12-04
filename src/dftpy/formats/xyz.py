@@ -36,8 +36,7 @@ def read_xyz(infile, **kwargs):
     #ions = Ions(symbols=symbols, positions=pos, cell=lattice, units = 'ase')
 
     atoms = Atoms(symbols=symbols, positions=pos, cell=lattice)
-    ions = Ions()
-    ions.from_ase(atoms)
+    ions = Ions.from_ase(atoms)
 
     if not hasattr(infile, 'close'): fh.close()
     return ions
