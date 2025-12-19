@@ -137,12 +137,16 @@ class UPFDICT(BasePseudo):
         with open(fname) as fd:
             string = fd.read()
         info = self.upf2dict(string)
-        r = self.get_array(info['PP_MESH']['PP_R'])
-        v = self.get_array(info['PP_LOCAL']) * 0.5  # Ry to a.u.
-        self.r = r
-        self.v = v
         self.info = info
         self._zval = float(self.info["PP_HEADER"]["z_valence"])
+        #
+        r = self.get_array(info['PP_MESH']['PP_R'])
+        if info['PP_HEADER'].get('is_coulomb', 'false').lower()[0] == 't':
+            v = -self._zval / r
+        else:
+            v = self.get_array(info['PP_LOCAL']) * 0.5  # Ry to a.u.
+        self.r = r
+        self.v = v
         if 'PP_NLCC' in self.info:
             self._core_density = self.get_array(self.info['PP_NLCC'])
         if 'PP_RHOATOM' in self.info:
@@ -166,22 +170,31 @@ class UPFJSON_alternative(BasePseudo):
 
     def read(self, fname):
         """Reads QE UPF type PP"""
-        import importlib.util
-
 
         info, header , _ = parse_upf_file(fname)
+        info["PP_HEADER"] = header
+        self.info = info
+        self._zval = float(self.info["PP_HEADER"]["z_valence"])
 
         r = np.array(info["PP_R"], dtype=np.float64)
-        v = np.array(info["PP_LOCAL"], dtype=np.float64) * 0.5 # Ry to Ha
+        if info['PP_HEADER'].get('is_coulomb', 'false').lower()[0] == 't':
+            v = -self._zval / r
+        else:
+            v = np.array(info["PP_LOCAL"], dtype=np.float64) * 0.5 # Ry to Ha
         self.r = r
         self.v = v
-        self.info = header
-        self._zval = float(self.info["z_valence"])
+
+        if 'PP_NLCC' in self.info:
+            self._core_density = np.array(self.info['PP_NLCC'], dtype=np.float64)
+        if 'PP_RHOATOM' in self.info:
+            rho = np.array(self.info['PP_RHOATOM'])[:self.r.size]
+            if self.r[0] > 1E-10 :
+                rho[:] /= (4*np.pi*self.r[:]**2)
+            else :
+                rho[1:] /= (4*np.pi*self.r[1:]**2)
+            self._atomic_density = rho
 
 
-
-
-   
 class UPFJSON(BasePseudo):
     def __init__(self, fname, direct = True, **kwargs):
         super().__init__(fname, direct = direct, **kwargs)
