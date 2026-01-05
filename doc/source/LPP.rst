@@ -5,7 +5,7 @@ Local Pseudopotentials
 Some background
 ---------------
 
-Orbital-Free Density Functional Theory (OF-DFT) is an electronic structure method based solely on the electron density. In Kohn-Sham DFT pseudopotentials typically include a nonlocal part, which requires the Kohn-Sham orbitals to be evaluated. Due to the absence of Kohn-Sham orbitals in OF-DFT, only local pseudopotentials can be employed. 
+Orbital-Free Density Functional Theory (OF-DFT) is an electronic structure method based solely on the electron density. In Kohn-Sham DFT pseudopotentials typically include a nonlocal part, which requires the Kohn-Sham orbitals to be evaluated. Due to the absence of Kohn-Sham orbitals in OF-DFT, only local pseudopotentials (LPPs) can be employed. 
 
 Several local pseudopotentials have been developed and successfully applied to selected elements. A fairly exhaustive list:
 
@@ -15,7 +15,9 @@ Several local pseudopotentials have been developed and successfully applied to s
 
 - Optimized Effective Local Pseudopotentials (`OEPP <https://doi.org/10.1063/1.4944989>`_)
 
-The `PRG <https://sites.rutgers.edu/prg>`_ recently derived a new set of local pseudopotentials for transition metal elements which is available below (PGBRV and PPSL as they are based on the `GBRV <https://www.physics.rutgers.edu/gbrv/>`_ and `PSL <https://dalcorso.github.io/pslibrary/>`_ ultrasoft pseudopotentials). The new pseudos can be constructed for any element by following this `tutorial <tutorials/jupyter/lpps.ipynb>`_. The formalism behind this new class of pseudopotentials is described `here <>`_.
+- Pseudized nonlocal pseudopotentials OF-DFT (`PGBRV PPSL <https://arxiv.org/abs/2511.19892>`_)
+
+The `PRG <https://sites.rutgers.edu/prg>`_ recently derived a new set of local pseudopotentials for transition metal elements which is available below (PGBRV and PPSL as they are based on the `GBRV <https://www.physics.rutgers.edu/gbrv/>`_ and `PSL <https://dalcorso.github.io/pslibrary/>`_ ultrasoft pseudopotentials). The new pseudos can be constructed for any element by following this `tutorial <tutorials/jupyter/lpps.ipynb>`_. The formalism behind this new class of pseudopotentials is described `here <https://arxiv.org/abs/2511.19892>`_.
 
 
 Download LPPs
@@ -68,9 +70,9 @@ Download LPPs
         <option value="HQLPP_recpot">HQLPP_recpot</option>
         <option value="BLPS_lda">BLPS_lda</option>
         <option value="BLPS_gga">BLPS_gga</option>
-        <option value="OEPP_recpot">EOPP_recpot</option>
-        <option value="OEPP_upf">EOPP_upf</option>
-        <option value="OEPP_cpi">EOPP_cpi</option>
+        <option value="OEPP_recpot">OEPP_recpot</option>
+        <option value="OEPP_upf">OEPP_upf</option>
+        <option value="OEPP_cpi">OEPP_cpi</option>
     </select>
 
     <div class="periodic-table">
