@@ -18,7 +18,7 @@ def FT_WTPotential(rho, kernel, alpha=5.0 / 6.0, beta=5.0 / 6.0):
     rhoa = rho ** alpha
     rhob = rho ** beta
     frhob = rhob.fft()
-    pot = (frhob * kernel).ifft()
+    pot = (frhob * kernel).ifft(force_real=True)
     #    energy = (rhoa * pot).sum() * rho.grid.dV
     pot_out = (alpha + beta) * pot * rhoa / rho
     return pot_out
@@ -31,7 +31,7 @@ def FT_WTEnergy(rho: DirectField, kernel, alpha=5.0 / 6.0, beta=5.0 / 6.0):
     rhoa = rho ** alpha
     rhob = rho ** beta
     frhob = rhob.fft()
-    pot = (frhob * kernel).ifft()
+    pot = (frhob * kernel).ifft(force_real=True)
     energy = (rhoa * pot).sum() * rho.grid.dV
     return energy
 
@@ -57,7 +57,7 @@ def FT_WTStress(rho, ke_kernel_saved=None, temperature=1e-3,
     rhob = rho ** kernel_table['beta']
     frhoa = rhoa.fft()
     frhob = rhob.fft()
-    pot = (frhob * kernel).ifft()
+    pot = (frhob * kernel).ifft(force_real=True)
     energy = np.sum(pot * rhoa)
     """
     stress part 1 
@@ -80,7 +80,7 @@ def FT_WTStress(rho, ke_kernel_saved=None, temperature=1e-3,
         for j in range(3):
             peta = peta_pe(rho0, q_norm, q, i, j)
             s_kernel = kernel_1 * peta
-            pot = (frhoa * s_kernel).ifft()
+            pot = (frhoa * s_kernel).ifft(force_real=True)
             stress[i, j] += np.sum(rhob * pot)
 
     #    print("s2", stress)
@@ -92,7 +92,7 @@ def FT_WTStress(rho, ke_kernel_saved=None, temperature=1e-3,
                                      kernel_table['s_wetaprho'])
     kernel_2 = kernel_2 * rho0
     #    print("k2", kernel_2[6, 6, 6])
-    pot = (frhoa * kernel_2).ifft()
+    pot = (frhoa * kernel_2).ifft(force_real=True)
     for i in range(3):
         stress[i, i] -= np.sum(pot * rhob)
     #    print("s3", stress)

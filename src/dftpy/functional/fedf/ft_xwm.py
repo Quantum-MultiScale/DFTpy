@@ -26,14 +26,14 @@ def FT_XWMPotential(rho, kernel1, kernel2, kappa: float = 0.0):
     frhoa = rhoa.fft()
 
     # part 1
-    pot_tmp = (frhoa * kernel1).ifft()
+    pot_tmp = (frhoa * kernel1).ifft(force_real=True)
     pot = 2.0 * alpha * pot_tmp * rhoa / rho
 
     # part 2
     frhob = rhob.fft()
-    pot_tmp = (frhoa * kernel2).ifft()
+    pot_tmp = (frhoa * kernel2).ifft(force_real=True)
     pot = pot + beta * pot_tmp * rhob / rho
-    pot_tmp = (frhob * kernel2).ifft()
+    pot_tmp = (frhob * kernel2).ifft(force_real=True)
     pot = pot + alpha * pot_tmp * rhoa / rho
 
     return pot
@@ -50,11 +50,11 @@ def FT_XWMEnergy(rho, kernel1, kernel2, kappa: float = 0.0):
     frhoa = rhoa.fft()
 
     # part 1
-    pot_tmp = (frhoa * kernel1).ifft()
+    pot_tmp = (frhoa * kernel1).ifft(force_real=True)
     energy = np.sum(pot_tmp * rhoa)
 
     # part 2
-    pot_tmp = (frhoa * kernel2).ifft()
+    pot_tmp = (frhoa * kernel2).ifft(force_real=True)
     energy = energy + np.sum(pot_tmp * rhob)
 
     energy = energy * rho.grid.dV
@@ -88,11 +88,11 @@ def FT_XWMStress(rho, ke_kernel_saved=None, temperature=1e-3, **kwargs):
     """
     part 1 
     """
-    etmp = (frhoa * kernel1).ifft()
+    etmp = (frhoa * kernel1).ifft(force_real=True)
     ee = -(2.0 / 3.0 + 2 * kappa) * np.sum(etmp * rhoa)
     for i in range(3):
         stress[i, i] += ee
-    etmp = (frhoa * kernel2).ifft()
+    etmp = (frhoa * kernel2).ifft(force_real=True)
     ee = -(5.0 / 3.0 + 2 * kappa) * np.sum(etmp * rhob)
     for i in range(3):
         stress[i, i] += ee
@@ -126,8 +126,8 @@ def FT_XWMStress(rho, ke_kernel_saved=None, temperature=1e-3, **kwargs):
             if i == j:
                 kernelx1 -= kernel12
                 kernelx2 -= kernel22
-            stress[i, j] += np.sum((frhoa * kernelx1).ifft() * rhoa)
-            stress[i, j] += np.sum((frhoa * kernelx2).ifft() * rhob)
+            stress[i, j] += np.sum((frhoa * kernelx1).ifft(force_real=True) * rhoa)
+            stress[i, j] += np.sum((frhoa * kernelx2).ifft(force_real=True) * rhob)
 
     stress *= rho.grid.dV / rho.grid.volume
     return stress
