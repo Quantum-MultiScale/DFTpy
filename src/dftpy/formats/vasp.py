@@ -1,5 +1,6 @@
 import numpy as np
 from dftpy.ions import Ions
+from ase.atoms import Atoms
 
 def read_POSCAR(infile, names=None, **kwargs):
     if hasattr(infile, 'close'):
@@ -51,7 +52,9 @@ def read_POSCAR(infile, names=None, **kwargs):
     for i in range(len(names)):
         symbols.extend([names[i]] * typ[i])
 
-    ions = Ions(symbols=symbols, positions=positions, scaled_positions=scaled_positions, cell=lat, units = 'ase')
+    # ions = Ions(symbols=symbols, positions=positions, scaled_positions=scaled_positions, cell=lat, units = 'ase')
+    atoms = Atoms(symbols=symbols, positions=positions, scaled_positions=scaled_positions, cell=lat)
+    ions = Ions.from_ase(atoms)
 
     if not hasattr(infile, 'close'): fh.close()
     return ions
