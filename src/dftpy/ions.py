@@ -55,6 +55,7 @@ class Ions(Atoms):
         "repeat",
         "copy",
         "set_constraint",
+        "wrap",
     ]
     allowed_attributes = [
         "init_options",
@@ -112,12 +113,28 @@ class Ions(Atoms):
             celldisp=None,
             info=None,
             pbc=True,
+            units='au',
     ):
+        if units != 'au':
+            symbols = Atoms(
+                    symbols=symbols,
+                    positions=positions,
+                    numbers=numbers,
+                    tags=tags,
+                    magmoms=magmoms,
+                    charges=charges,
+                    scaled_positions=scaled_positions,
+                    cell=cell,
+                    celldisp=celldisp,
+                    info=info,
+                    pbc=pbc,
+                    )
+
         if isinstance(symbols, Atoms):
             ase_ions = Ions.from_ase(symbols)
             self.__dict__.update(ase_ions.__dict__)
             return
-        
+
         if hasattr(symbols, "get_positions") or (
                 isinstance(symbols, (list, tuple))
                 and len(symbols) > 0
