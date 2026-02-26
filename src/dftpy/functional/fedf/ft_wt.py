@@ -1,5 +1,4 @@
 # Collection of finite temperature Thomas Fermi functional
-from IPython.terminal.shortcuts.auto_suggest import accept_and_keep_cursor
 import numpy as np
 from dftpy.functional.fedf.ft_lindhard import *
 from dftpy.field import DirectField

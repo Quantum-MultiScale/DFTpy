@@ -1,7 +1,6 @@
 # Collection of finite temperature Thomas Fermi functional
 
 import numpy as np
-from sympy.abc import kappa
 
 from dftpy.functional.functional_output import FunctionalOutput
 from dftpy.functional.fedf.ft_lindhard import *
