@@ -2,7 +2,7 @@ import numpy as np
 import os
 from dftpy.mpi import sprint
 from dftpy.optimization import Optimization, OESCF
-from dftpy.functional import Functional
+from dftpy.functional import Functional, MartynaTuckerman
 from dftpy.functional.total_functional import TotalFunctional
 from dftpy.constants import LEN_CONV, ENERGY_CONV, STRESS_CONV
 from dftpy.formats.io import read_density, write, read
@@ -61,6 +61,16 @@ def ConfigParser(config, ions=None, rhoini=None, pseudo=None, grid=None, mp = No
     if grid is None:
         grid = DirectGrid(lattice=lattice, nr=nr, full=config["GRID"]["gfull"], cplx=config["GRID"]["cplx"], mp=mp)
     if mp is None : mp = grid.mp
+    ############################## Martyna–Tuckerman  ##############################
+    mt_conf = config.get("MARTYNA_TUCKERMAN") or {}
+    enable_mt = bool(mt_conf.get("enable", False))
+    mt = None
+    if enable_mt:
+        alpha_mt = mt_conf.get("alpha")
+        if alpha_mt is not None:
+            alpha_mt = float(alpha_mt)
+        mt = MartynaTuckerman(grid, alpha=alpha_mt)
+        sprint("Martyna–Tuckerman screening is enabled (alpha={})".format("auto" if alpha_mt is None else alpha_mt))
     ############################## PSEUDO  ##############################
     PPlist = {}
     for key in config["PP"]:
@@ -74,13 +84,15 @@ def ConfigParser(config, ions=None, rhoini=None, pseudo=None, grid=None, mp = No
     linearie = config["MATH"]["linearie"]
     if pseudo is None:
         # PSEUDO = LocalPseudo(grid=grid, ions=ions, PP_list=PPlist, PME=linearie)
-        PSEUDO = Functional(type ='PSEUDO', grid=grid, ions=ions, PP_list=PPlist, PME=linearie)
+        PSEUDO = Functional(type="PSEUDO", grid=grid, ions=ions, PP_list=PPlist, PME=linearie, mt=mt)
     else:
         PSEUDO = pseudo
 
         PSEUDO.restart(full=False)
         PSEUDO.grid = grid
         PSEUDO.ions = ions
+        if mt is not None:
+            PSEUDO._mt = mt
     kedf_config = config["KEDF"].copy()
     if kedf_config.get('temperature', None):
         kedf_config['temperature'] *= ENERGY_CONV['eV']['Hartree']
@@ -97,7 +109,7 @@ def ConfigParser(config, ions=None, rhoini=None, pseudo=None, grid=None, mp = No
         KE = Functional(type="KEDF", name=config["KEDF"]["kedf"], **kedf_config)
         evaluator_emb = None
     ############################## XC and Hartree ##############################
-    HARTREE = Functional(type="HARTREE")
+    HARTREE = Functional(type="HARTREE", mt=mt)
     XC = Functional(type="XC", name=config["EXC"]["xc"], pseudo=PSEUDO, **config["EXC"])
     if config["NONADIABATIC"]["nonadiabatic"] is None:
         DYNAMIC = None
@@ -143,6 +155,8 @@ def ConfigParser(config, ions=None, rhoini=None, pseudo=None, grid=None, mp = No
         "E_v_Evaluator": E_v_Evaluator,
         "nr2": nr2,
         "evaluator_emb" : evaluator_emb,
+        "martyna_tuckerman": mt,
+        "mt": mt,
     }
     return config, others
 

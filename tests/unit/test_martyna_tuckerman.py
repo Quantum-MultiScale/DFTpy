@@ -1,11 +1,20 @@
 import numpy as np
 import pytest
 
+from dftpy.config.config import DefaultOption
+
 from dftpy.field import DirectField
 from dftpy.functional.hartree import Hartree
 from dftpy.functional.martyna_tuckerman import MartynaTuckerman
 from dftpy.grid import DirectGrid
 from dftpy.ions import Ions
+
+
+def test_default_config_contains_martyna_tuckerman_section():
+    conf = DefaultOption()
+    mt = conf["MARTYNA_TUCKERMAN"]
+    assert mt["enable"] is False
+    assert mt["alpha"] is None
 
 
 @pytest.fixture()
