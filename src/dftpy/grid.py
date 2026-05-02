@@ -387,6 +387,12 @@ class DirectGrid(BaseGrid):
         return self._r_mic
 
     @property
+    def rmic(self):
+        """Synonym for :attr:`r_mic`; minimum-image Euclidean distance from lattice centers."""
+
+        return self.r_mic
+
+    @property
     def s(self):
         if self._s is None:
             self._calc_grid_crys_points()

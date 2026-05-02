@@ -20,6 +20,7 @@ def test_direct_grid_r_mic_cell_center_near_zero(cubic_grid_serial):
     g = cubic_grid_serial
     mid = (g.nr[0] // 2, g.nr[1] // 2, g.nr[2] // 2)
     assert g.r_mic[mid] < 1e-10
+    assert g.rmic[mid] == pytest.approx(g.r_mic[mid])
 
 
 def test_martyna_build_wg_zero_at_gamma(cubic_grid_serial):
