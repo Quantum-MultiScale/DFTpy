@@ -77,7 +77,7 @@ class LocalPseudo(AbstractLocalPseudo):
     This is a template class and should never be touched.
     """
 
-    def __init__(self, grid=None, ions=None, PP_list=None, PME=True, readpp = None, comm = None, BsplineOrder = 10, **kwargs):
+    def __init__(self, grid=None, ions=None, PP_list=None, PME=True, readpp = None, comm = None, BsplineOrder = 10, mt=None, **kwargs):
 
         self.type = 'PSEUDO'
         self.name = 'PSEUDO'
@@ -98,6 +98,7 @@ class LocalPseudo(AbstractLocalPseudo):
 
         self.PME = PME
         self.BsplineOrder = BsplineOrder
+        self._mt = mt
         # if not PME :
             # sprint("Using N^2 method for strf!", comm=comm)
         self.restart(grid, ions)
@@ -156,7 +157,14 @@ class LocalPseudo(AbstractLocalPseudo):
         without recomputing the local pp on the atoms.
         """
         if duplicate :
-            pseudo = self.__class__(grid = grid, ions = ions, readpp = self.readpp)
+            pseudo = self.__class__(
+                grid=grid,
+                ions=ions,
+                readpp=self.readpp,
+                PME=self.PME,
+                BsplineOrder=self.BsplineOrder,
+                mt=self._mt,
+            )
             return pseudo
 
         self._vlines = {}  # PP for each atomic species on 3D PW grid
@@ -187,6 +195,8 @@ class LocalPseudo(AbstractLocalPseudo):
         if not isinstance(value, (DirectGrid)):
             raise TypeError("Grid must be DirectGrid")
         self._grid = value
+        if self._mt is not None:
+            self._mt.grid = value
 
     @property
     def ions(self):
@@ -213,8 +223,27 @@ class LocalPseudo(AbstractLocalPseudo):
     def get_ewald(self, PME = None):
         if self.ewald is None :
             if PME is None : PME = self.PME
-            self.ewald = ewald(ions=self.ions, grid = self.grid, PME=PME, Bspline = self.Bspline)
+            self.ewald = ewald(
+                ions=self.ions,
+                grid=self.grid,
+                PME=PME,
+                Bspline=self.Bspline,
+                mt=self._mt,
+            )
         return self.ewald
+
+    def _accumulate_mt_local_correction(self, v_reciprocal):
+        """Adds MT local PP reciprocal correction (:class:`MartynaTuckerman`)."""
+
+        if self._mt is None:
+            return
+        corr = self._mt.local_pp_correction_reciprocal(self.ions)
+        if hasattr(v_reciprocal, "griddata_3d"):
+            v_reciprocal.griddata_3d += corr
+        elif isinstance(v_reciprocal, np.ndarray):
+            v_reciprocal += corr
+        else :
+            raise TypeError("unexpected reciprocal POT array type")
 
     def compute(self, density, calcType={"E", "V"}, **kwargs):
         if self._vreal is None:
@@ -431,6 +460,7 @@ class LocalPseudo(AbstractLocalPseudo):
                 if self.ions.symbols[i] == key:
                     strf = self.ions.strf(reciprocal_grid, i)
                     v += self.vlines[key] * strf
+        self._accumulate_mt_local_correction(v)
         self._v = ReciprocalField(reciprocal_grid, griddata_3d=v)
         return "PP successfully interpolated"
 
@@ -448,6 +478,7 @@ class LocalPseudo(AbstractLocalPseudo):
             Qarray = DirectField(grid=self.grid, griddata_3d=QA, rank=1)
             v = v + self.vlines[key] * Qarray.fft()
         v = v * self.Bspline.Barray * self.grid.nnrR / self.grid.volume
+        self._accumulate_mt_local_correction(v)
         self._v = v
         return "PP successfully interpolated"
 

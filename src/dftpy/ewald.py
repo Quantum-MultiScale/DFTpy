@@ -195,7 +195,7 @@ class CBspline(object):
 
 
 class ewald(object):
-    def __init__(self, precision=1.0e-8, ions=None, rho=None, grid = None, verbose=False, BsplineOrder=10, PME=False, Bspline=None, **kwargs):
+    def __init__(self, precision=1.0e-8, ions=None, rho=None, grid=None, verbose=False, BsplineOrder=10, PME=False, Bspline=None, mt=None, **kwargs):
         """
         This computes Ewald contributions to the energy.
         INPUT: precision  float, should be bigger than the machine precision and
@@ -235,6 +235,7 @@ class ewald(object):
                 self.Bspline = CBspline(ions=self.ions, grid=self.grid, order=self.order)
             else:
                 self.Bspline = Bspline
+        self._mt = mt
         self._energy = None
         self._forces = None
         self._stress = None
@@ -497,6 +498,9 @@ class ewald(object):
 
             Ewald_Energy = e_corr + e_real + e_rec
 
+            if self._mt is not None:
+                Ewald_Energy = Ewald_Energy + float(self._mt.ion_ewald_energy(self.ions))
+
             if self.verbose:
                 sprint("Ewald sum & divergent terms in the Energy:")
                 sprint("eta used = ", self.eta)
@@ -515,6 +519,8 @@ class ewald(object):
             else:
                 f_rec = self.Forces_rec()
             Ewald_Forces += f_rec
+            if self._mt is not None:
+                Ewald_Forces = Ewald_Forces + self._mt.ion_ewald_forces(self.ions)
             self._forces = Ewald_Forces
         return self._forces
 
