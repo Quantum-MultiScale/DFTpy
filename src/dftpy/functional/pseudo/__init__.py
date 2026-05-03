@@ -238,12 +238,7 @@ class LocalPseudo(AbstractLocalPseudo):
         if self._mt is None:
             return
         corr = self._mt.local_pp_correction_reciprocal(self.ions)
-        if hasattr(v_reciprocal, "griddata_3d"):
-            v_reciprocal.griddata_3d += corr
-        elif isinstance(v_reciprocal, np.ndarray):
-            v_reciprocal += corr
-        else :
-            raise TypeError("unexpected reciprocal POT array type")
+        v_reciprocal += corr
 
     def compute(self, density, calcType={"E", "V"}, **kwargs):
         if self._vreal is None:
@@ -555,20 +550,15 @@ class LocalPseudo(AbstractLocalPseudo):
         reciprocal_grid = self.grid.get_reciprocal()
         g = reciprocal_grid.g
         omega = self.grid.volume
-        wg = np.ascontiguousarray(self._mt.wg, dtype=np.float64)
+        wg = self._mt.wg
         Forces = np.zeros((self.ions.nat, 3))
         for i in range(self.ions.nat):
-            strf = ReciprocalField(
-                reciprocal_grid,
-                griddata_3d=np.asarray(self.ions.strf(reciprocal_grid, i), dtype=np.complex128),
-            )
+            strf = self.ions.strf(reciprocal_grid, i)
             coef_mt = -(wg / omega) * self.ions.charges[i]
             for a in range(3):
-                dV_G = ReciprocalField(
-                    reciprocal_grid,
-                    griddata_3d=np.asarray(coef_mt * (-1j * g[a]) * strf, dtype=np.complex128),
-                )
-                dV_r = dV_G.ifft(force_real=True)
+                dV_G = coef_mt * (-1j * g[a]) * strf
+                dV_r = dV_G.ifft(force_real=True) 
+                #Forces[i, a] = -np.einsum("ijk, ijk->", dV_r, rho) * self.grid.dV 
                 Forces[i, a] = -(dV_r * rho).integral()
         return Forces
 
@@ -584,14 +574,11 @@ class LocalPseudo(AbstractLocalPseudo):
         omega = self.grid.volume
         wg = None
         if self._mt is not None:
-            wg = np.ascontiguousarray(self._mt.wg, dtype=np.float64)
+            wg = self._mt.wg
         Forces = np.zeros((self.ions.nat, 3))
         for i in range(self.ions.nat):
             key = self.ions.symbols[i]
-            strf = ReciprocalField(
-                reciprocal_grid,
-                griddata_3d=np.asarray(self.ions.strf(reciprocal_grid, i), dtype=np.complex128),
-            )
+            strf = self.ions.strf(reciprocal_grid, i)
             vl = self.vlines[key]
             Z = self.ions.charges[i]
             if wg is not None:
@@ -599,10 +586,7 @@ class LocalPseudo(AbstractLocalPseudo):
             else:
                 coef = vl
             for a in range(3):
-                dV_G = ReciprocalField(
-                    reciprocal_grid,
-                    griddata_3d=np.asarray(coef * (-1j * g[a]) * strf, dtype=np.complex128),
-                )
+                dV_G = coef * (-1j * g[a]) * strf
                 dV_r = dV_G.ifft(force_real=True)
                 Forces[i, a] = -(dV_r * rho).integral()
         return Forces

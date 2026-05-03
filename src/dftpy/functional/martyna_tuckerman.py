@@ -22,6 +22,12 @@ from __future__ import annotations
 import numpy as np
 from scipy import special
 
+from dftpy.constants import environ
+from dftpy.mpi import sprint
+
+print=False
+if environ["LOGLEVEL"] >= 2:
+    print=True
 
 def optimal_alpha_beta(gg_max: float, tol: float = 1e-7) -> tuple[float, float]:
     """Tune *alpha* using a truncation bound analogous to QE ``init_wg_corr``.
@@ -41,6 +47,7 @@ def optimal_alpha_beta(gg_max: float, tol: float = 1e-7) -> tuple[float, float]:
             )
         upperbound = np.sqrt(2.0 * alpha / pi) * special.erfc(np.sqrt(gg_max / (4.0 * alpha)))
     beta = 0.5 / alpha
+    if print: sprint("MT alpha: ", alpha) 
     return float(alpha), float(beta)
 
 
@@ -190,20 +197,19 @@ class MartynaTuckerman:
 
         if self._user_alpha is None:
             mask_sel = reciprocal.mask_serial
-            gg_max = float(np.max(gg[mask_sel]))
+            gg_max = np.max(gg[mask_sel])
             self._alpha, self._beta = optimal_alpha_beta(gg_max)
         else:
-            self._alpha = float(self._user_alpha)
+            self._alpha = self._user_alpha
             self._beta = 0.5 / self._alpha
 
         ws_r = ws_dist_corner(self._grid.r, np.asarray(self._grid.lattice, dtype=np.float64))
         aux_r = DirectField(grid=self._grid, griddata_3d=smooth_coulomb_r(ws_r, self._alpha))
-        aux_g = aux_r.fft()
+        aux_g = aux_r.fft().real
 
-        wg = np.real(aux_g) - smooth_coulomb_g(gg, self._alpha, self._beta)
-        # QE ``init_wg_corr``: ``EXP(-tpiba2 * gg * beta / 4)**2`` = ``EXP(-|G|^2 / (4*alpha)``
-        # when ``beta = 0.5/alpha``.
-        wg *= np.exp(-0.25 * gg / self._alpha)
+        wg = aux_g - smooth_coulomb_g(gg, self._alpha, self._beta)
+
+        #wg *= np.exp(-0.25 * gg / self._alpha)
         wg[0, 0, 0] = 0.0
         self._wg = wg
 
@@ -257,11 +263,23 @@ class MartynaTuckerman:
             reciprocal_grid = self._grid.get_reciprocal()
         mask = reciprocal_grid.mask
         wg = self.wg
-        S_tot = np.zeros_like(wg, dtype=np.complex128)
-        for ii in range(ions.nat):
-            S_tot += ions.charges[ii] * ions.strf(reciprocal_grid, ii)
-        rho_ion = S_tot / self._grid.volume
-        return 0.5 * self._grid.volume * np.real(np.sum((np.abs(rho_ion[mask]) ** 2) * wg[mask]))
+
+        strf = ions.strf(reciprocal_grid, 0) * ions.charges[0]
+        for i in np.arange(1, ions.nat):
+            strf += ions.strf(reciprocal_grid, i) * ions.charges[i]
+        strf_sq = np.conjugate(strf) * strf
+        return 0.5 * np.sum(strf_sq[mask] * wg[mask]).real / self._grid.volume
+
+
+#        S_tot = np.zeros_like(wg, dtype=np.complex128)
+#        for ii in range(ions.nat):
+#            S_tot += ions.charges[ii] * ions.strf(reciprocal_grid, ii)
+#        rho_ion = S_tot / self._grid.volume
+
+    #return 0.5 * self._grid.volume * np.real(np.sum((np.abs(rho_ion[mask]) ** 2) * wg[mask]))
+
+
+
 
     def ion_ewald_forces(self, ions, reciprocal_grid=None) -> np.ndarray:
         """Derivative of :meth:`ion_ewald_energy` w.r.t. ion positions."""

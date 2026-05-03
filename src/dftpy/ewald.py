@@ -499,7 +499,7 @@ class ewald(object):
             Ewald_Energy = e_corr + e_real + e_rec
 
             if self._mt is not None:
-                Ewald_Energy = Ewald_Energy + float(self._mt.ion_ewald_energy(self.ions))
+                Ewald_Energy = Ewald_Energy + self._mt.ion_ewald_energy(self.ions)
 
             if self.verbose:
                 sprint("Ewald sum & divergent terms in the Energy:")
