@@ -173,8 +173,11 @@ def test_mt_ewald_forces_have_expected_shape():
     assert np.all(np.isfinite(f))
 
 
-def test_mg_cluster_totalfunctional_mt_localpseudo_energy_and_forces():
-    """Mg8 + ``mg.lda.recpot`` + TF/LDA + Hartree(MT): energy finite; forces vs FD.
+@pytest.mark.parametrize("use_pme", [True, False])
+def test_mg_cluster_totalfunctional_mt_localpseudo_energy_and_forces(use_pme: bool):
+    """Mg8 + ``mg.lda.recpot`` + TF/LDA + Hartree(MT): energy finite; analytic forces vs FD.
+
+    Parametrized over ``LocalPseudo(..., PME=…)`` (Bspline spreading vs direct structure factors).
 
     Valence density is a sum of Gaussians (width ``sigma``) centered on each Mg with
     minimum-image separation, then scaled so :math:`\\int \\rho = N_e`. This keeps charge
@@ -197,7 +200,7 @@ def test_mg_cluster_totalfunctional_mt_localpseudo_energy_and_forces():
     grid = DirectGrid(lattice=ions.cell, nr=[18, 18, 16])
     mt = MartynaTuckerman(grid)
 
-    pseudo_ref = LocalPseudo(grid=grid, ions=ions, PP_list={"Mg": pp_file}, PME=True, mt=mt)
+    pseudo_ref = LocalPseudo(grid=grid, ions=ions, PP_list={"Mg": pp_file}, PME=use_pme, mt=mt)
     ne = float(pseudo_ref.ions.get_ncharges())
 
     sigma = 1.35
@@ -206,7 +209,7 @@ def test_mg_cluster_totalfunctional_mt_localpseudo_energy_and_forces():
         return gaussian_valence_density(grid, ii, sigma=sigma, total_valence_electrons=ne)
 
     def build_evaluator(ii: Ions) -> TotalFunctional:
-        pseudo = LocalPseudo(grid=grid, ions=ii, PP_list={"Mg": pp_file}, PME=True, mt=mt)
+        pseudo = LocalPseudo(grid=grid, ions=ii, PP_list={"Mg": pp_file}, PME=use_pme, mt=mt)
         ke = Functional(type="KEDF", name="TF")
         xc = Functional(type="XC", name="LDA")
         har = Functional(type="HARTREE", mt=mt)

@@ -534,21 +534,38 @@ class LocalPseudo(AbstractLocalPseudo):
         return stress
 
     def _Force(self, density):
+        """Non-PME HF forces: ``-∫ ∂v_loc/∂R ρ dr`` with MT folded into ``∂v`` when ``mt`` is set."""
+
         if density.rank > 1:
             rho = np.sum(density, axis=0)
         else:
             rho = density
-        rhoG = rho.fft()
         reciprocal_grid = self.grid.get_reciprocal()
         g = reciprocal_grid.g
+        omega = self.grid.volume
+        wg = None
+        if self._mt is not None:
+            wg = np.ascontiguousarray(self._mt.wg, dtype=np.float64)
         Forces = np.zeros((self.ions.nat, 3))
-        mask = reciprocal_grid.mask
         for i in range(self.ions.nat):
-            strf = self.ions.istrf(reciprocal_grid, i)
-            den = self.vlines[self.ions.symbols[i]][mask] * (rhoG[mask] * strf[mask]).imag
-            for j in range(3):
-                Forces[i, j] = np.einsum("i, i->", g[j][mask], den)
-        Forces *= 2.0 / self.grid.volume
+            key = self.ions.symbols[i]
+            strf = ReciprocalField(
+                reciprocal_grid,
+                griddata_3d=np.asarray(self.ions.strf(reciprocal_grid, i), dtype=np.complex128),
+            )
+            vl = self.vlines[key]
+            Z = self.ions.charges[i]
+            if wg is not None:
+                coef = vl - (wg / omega) * Z
+            else:
+                coef = vl
+            for a in range(3):
+                dV_G = ReciprocalField(
+                    reciprocal_grid,
+                    griddata_3d=np.asarray(coef * (-1j * g[a]) * strf, dtype=np.complex128),
+                )
+                dV_r = dV_G.ifft(force_real=True)
+                Forces[i, a] = -(dV_r * rho).integral()
         return Forces
 
     def _ForcePME(self, density):

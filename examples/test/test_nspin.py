@@ -1,4 +1,6 @@
+import importlib.util
 import unittest
+
 import numpy as np
 import dftpy.formats.io as dftpy_io
 from dftpy.optimization import Optimization
@@ -11,11 +13,14 @@ from dftpy.functional.pseudo import LocalPseudo
 from common import dftpy_data_path
 
 class Test(unittest.TestCase):
+    @unittest.skipUnless(
+        importlib.util.find_spec("pylibxc") is not None,
+        "Collinear spin LDA in this path uses LibXC (install pylibxc + LibXC)",
+    )
     def test_nspin(self):
         from ase.io.trajectory import Trajectory
         from ase.build import bulk
         from ase import Atoms
-        import matplotlib.pyplot as plt
         from dftpy.formats import io
         from dftpy.api.api4ase import DFTpyCalculator
         from dftpy.config import DefaultOption, OptionFormat
