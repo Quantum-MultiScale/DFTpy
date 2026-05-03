@@ -294,6 +294,10 @@ class LocalPseudo(AbstractLocalPseudo):
         self.local_PP()
         if self.PME:
             f = self._ForcePME(rho)
+            # Δv_MT(G) is added to V(G) in reciprocal space but _ForcePME only differentiates the
+            # B-spline × v_loc path; add Hellmann–Feynman ∂Δv_MT/∂R · ρ (non-PME folds this into _Force).
+            if self._mt is not None:
+                f = f + self._mt_local_hf_forces(rho)
         else:
             f = self._Force(rho)
         return f
@@ -532,6 +536,41 @@ class LocalPseudo(AbstractLocalPseudo):
                     stress[i, j] -= energy
         stress /= self.grid.volume
         return stress
+
+    def _mt_local_hf_forces(self, density):
+        """Hellmann–Feynman forces from ∂Δv_MT/∂R · ρ only (PME path).
+
+        ``Δv_MT = -(W/Ω) Σ_J Z_J e^{-iG·R_J}`` is accumulated onto ``V(G)``; its derivative w.r.t.
+        ``R_I`` is included here when using ``_ForcePME`` (which does not differentiate ``Δv_MT``).
+        Non-PME ``_Force`` already folds ``-(W/Ω) Z_I`` into the per-ion coefficient on ``∂S_I/∂R``.
+        """
+
+        if self._mt is None:
+            return np.zeros((self.ions.nat, 3))
+
+        if density.rank > 1:
+            rho = np.sum(density, axis=0)
+        else:
+            rho = density
+        reciprocal_grid = self.grid.get_reciprocal()
+        g = reciprocal_grid.g
+        omega = self.grid.volume
+        wg = np.ascontiguousarray(self._mt.wg, dtype=np.float64)
+        Forces = np.zeros((self.ions.nat, 3))
+        for i in range(self.ions.nat):
+            strf = ReciprocalField(
+                reciprocal_grid,
+                griddata_3d=np.asarray(self.ions.strf(reciprocal_grid, i), dtype=np.complex128),
+            )
+            coef_mt = -(wg / omega) * self.ions.charges[i]
+            for a in range(3):
+                dV_G = ReciprocalField(
+                    reciprocal_grid,
+                    griddata_3d=np.asarray(coef_mt * (-1j * g[a]) * strf, dtype=np.complex128),
+                )
+                dV_r = dV_G.ifft(force_real=True)
+                Forces[i, a] = -(dV_r * rho).integral()
+        return Forces
 
     def _Force(self, density):
         """Non-PME HF forces: ``-∫ ∂v_loc/∂R ρ dr`` with MT folded into ``∂v`` when ``mt`` is set."""

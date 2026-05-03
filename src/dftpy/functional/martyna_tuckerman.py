@@ -261,7 +261,7 @@ class MartynaTuckerman:
         for ii in range(ions.nat):
             S_tot += ions.charges[ii] * ions.strf(reciprocal_grid, ii)
         rho_ion = S_tot / self._grid.volume
-        return 0.5 * self._grid.volume * float(np.real(np.sum((np.abs(rho_ion[mask]) ** 2) * wg[mask])))
+        return 0.5 * self._grid.volume * np.real(np.sum((np.abs(rho_ion[mask]) ** 2) * wg[mask]))
 
     def ion_ewald_forces(self, ions, reciprocal_grid=None) -> np.ndarray:
         """Derivative of :meth:`ion_ewald_energy` w.r.t. ion positions."""
