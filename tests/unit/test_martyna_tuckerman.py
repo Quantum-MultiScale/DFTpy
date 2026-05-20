@@ -4,8 +4,14 @@ import pytest
 from dftpy.config.config import DefaultOption
 
 from dftpy.field import DirectField
+from dftpy.ewald import ewald
 from dftpy.functional.hartree import Hartree
-from dftpy.functional.martyna_tuckerman import MartynaTuckerman, ws_dist_corner, _ws_dist_corner_brute_chunks
+from dftpy.functional.martyna_tuckerman import (
+    MartynaTuckerman,
+    _ws_dist_corner_brute_chunks,
+    ws_dist_corner,
+    ws_dist_corner_grid,
+)
 from dftpy.grid import DirectGrid
 from dftpy.ions import Ions
 
@@ -46,10 +52,12 @@ def test_direct_grid_r_mic_cell_center_near_zero(cubic_grid_serial):
     assert g.rmic[mid] == pytest.approx(g.r_mic[mid])
 
 
-def test_martyna_build_wg_zero_at_gamma(cubic_grid_serial):
+def test_martyna_build_wg_finite_at_gamma(cubic_grid_serial):
+    """Appendix B: finite \(g\to 0\) screening after singularity cancellation — not forced to zero."""
+
     mt = MartynaTuckerman(cubic_grid_serial)
     wg = mt.wg
-    assert wg[0, 0, 0] == 0.0
+    assert np.isfinite(wg[0, 0, 0])
     reciprocal = cubic_grid_serial.get_reciprocal()
     wg_sel = wg[reciprocal.mask_serial]
     assert np.all(np.isfinite(wg_sel))
@@ -141,8 +149,8 @@ def test_mt_ewald_energy_sign_symmetry_same_geometry(cubic_grid_serial):
     ions1.set_charges([1.0, -1.0])
     ions2 = Ions(symbols=["H", "H"], positions=p.copy(), cell=g.lattice)
     ions2.set_charges([-1.0, 1.0])
-    e1 = mt.ion_ewald_energy(ions1)
-    e2 = mt.ion_ewald_energy(ions2)
+    e1 = ewald(ions=ions1, grid=g, mt=mt)._mt_ion_ewald_energy()
+    e2 = ewald(ions=ions2, grid=g, mt=mt)._mt_ion_ewald_energy()
     assert e1 == pytest.approx(e2, rel=1e-12)
 
 
@@ -151,15 +159,50 @@ def test_mt_ewald_forces_have_expected_shape(cubic_grid_serial):
     mt = MartynaTuckerman(g)
     ions = Ions(symbols=["H"], positions=np.zeros((1, 3)), cell=g.lattice)
     ions.set_charges([2.5])
-    f = mt.ion_ewald_forces(ions)
+    f = ewald(ions=ions, grid=g, mt=mt)._mt_ion_ewald_forces()
     assert f.shape == (ions.nat, 3)
     assert np.all(np.isfinite(f))
 
 
-def test_martyna_tuckerman_raises_when_lattice_not_orthorhombic():
+def test_ws_dist_corner_cvp_equals_brute_triclinic():
+    """Babai + shell MIC agrees with brute translation search on grid nodes."""
+
     L = 3.7
     skew = np.array([[L, 0.0, 0.0], [0.5 * L, L, 0.0], [0.0, 0.0, L]], dtype=np.float64)
-    # rows are pairwise non-orthogonal
+    g = DirectGrid(lattice=skew, nr=[10, 10, 10])
+    pts = np.moveaxis(g.r, 0, -1).reshape(-1, 3)
+    lat = np.asarray(g.lattice, dtype=np.float64)
+    brute = _ws_dist_corner_brute_chunks(pts, lat, nmax=5)
+    corner = ws_dist_corner_grid(g)
+    np.testing.assert_allclose(corner.reshape(-1), brute, rtol=0.0, atol=5e-10)
+
+
+def test_ws_dist_corner_cvp_equals_brute_random_triclinic():
+    """CVP path matches brute on random fractional points in the unit cell."""
+
+    rng = np.random.default_rng(1)
+    lat = np.array(
+        [
+            [4.2, 0.0, 0.0],
+            [1.1, 3.8, 0.0],
+            [0.3, 0.7, 5.1],
+        ],
+        dtype=np.float64,
+    )
+    n_pts = 500
+    frac = rng.random((n_pts, 3))
+    pts = frac @ lat
+    brute = _ws_dist_corner_brute_chunks(pts, lat, nmax=5)
+    corner = ws_dist_corner(pts.T.reshape(3, -1), lat)
+    np.testing.assert_allclose(corner.reshape(-1), brute, rtol=0.0, atol=5e-10)
+
+
+def test_martyna_tuckerman_builds_wg_on_triclinic_cell():
+    L = 3.7
+    skew = np.array([[L, 0.0, 0.0], [0.5 * L, L, 0.0], [0.0, 0.0, L]], dtype=np.float64)
     grid = DirectGrid(lattice=skew, nr=[8, 8, 8])
-    with pytest.raises(ValueError, match="orthorhombic"):
-        MartynaTuckerman(grid)
+    mt = MartynaTuckerman(grid)
+    wg = mt.wg
+    assert np.isfinite(wg[0, 0, 0])
+    reciprocal = grid.get_reciprocal()
+    assert np.all(np.isfinite(wg[reciprocal.mask_serial]))

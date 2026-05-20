@@ -58,12 +58,7 @@ class Hartree(AbstractFunctional):
         options = copy.deepcopy(self.options)
         options.update(kwargs)
         if self.mt is not None:
-            warnings.warn(
-                "Hartree stress tensor uses the periodic Coulomb approximation; "
-                "MT screening is not included in the reported stress.",
-                UserWarning,
-                stacklevel=2,
-            )
+            raise Exception("MT not compatible with a stress calculation")
         energy = self.energy
         stress=HartreeFunctionalStress(density, energy=energy)
         return stress

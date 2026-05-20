@@ -20,6 +20,7 @@ from numpy.testing import assert_allclose
 from common import dftpy_data_path
 
 from dftpy.config.config import DefaultOption
+from dftpy.ewald import ewald
 from dftpy.field import DirectField
 from dftpy.formats.vasp import read_POSCAR
 from dftpy.functional import Functional, TotalFunctional
@@ -75,11 +76,11 @@ def test_direct_grid_r_mic_cell_center_near_zero():
     assert g.rmic[mid] == pytest.approx(g.r_mic[mid])
 
 
-def test_martyna_build_wg_zero_at_gamma():
+def test_martyna_build_wg_finite_at_gamma():
     g = _cubic_grid()
     mt = MartynaTuckerman(g)
     wg = mt.wg
-    assert wg[0, 0, 0] == 0.0
+    assert np.isfinite(wg[0, 0, 0])
     recip = g.get_reciprocal()
     assert np.all(np.isfinite(wg[recip.mask_serial]))
 
@@ -158,8 +159,8 @@ def test_mt_ewald_energy_sign_symmetry_same_geometry():
     ions1.set_charges([1.0, -1.0])
     ions2 = Ions(symbols=["H", "H"], positions=p.copy(), cell=g.lattice)
     ions2.set_charges([-1.0, 1.0])
-    e1 = mt.ion_ewald_energy(ions1)
-    e2 = mt.ion_ewald_energy(ions2)
+    e1 = ewald(ions=ions1, grid=g, mt=mt)._mt_ion_ewald_energy()
+    e2 = ewald(ions=ions2, grid=g, mt=mt)._mt_ion_ewald_energy()
     assert_allclose(e1, e2, rtol=1e-12, atol=1e-12)
 
 
@@ -168,7 +169,7 @@ def test_mt_ewald_forces_have_expected_shape():
     mt = MartynaTuckerman(g)
     ions = Ions(symbols=["H"], positions=np.zeros((1, 3)), cell=g.lattice)
     ions.set_charges([2.5])
-    f = mt.ion_ewald_forces(ions)
+    f = ewald(ions=ions, grid=g, mt=mt)._mt_ion_ewald_forces()
     assert f.shape == (ions.nat, 3)
     assert np.all(np.isfinite(f))
 

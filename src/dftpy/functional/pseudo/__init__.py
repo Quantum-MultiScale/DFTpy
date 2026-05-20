@@ -6,6 +6,7 @@ import scipy.special as sp
 from scipy.interpolate import splrep, splev
 import re
 
+from dftpy.constants import environ
 from dftpy.ewald import CBspline, ewald
 from dftpy.field import ReciprocalField, DirectField
 from dftpy.functional.abstract_functional import AbstractFunctional
@@ -99,8 +100,9 @@ class LocalPseudo(AbstractLocalPseudo):
         self.PME = PME
         self.BsplineOrder = BsplineOrder
         self._mt = mt
-        # if not PME :
-            # sprint("Using N^2 method for strf!", comm=comm)
+        if not PME :
+            if environ['LOGLEVEL']<=2:
+                sprint("Using N^2 method for strf!", comm=comm)
         self.restart(grid, ions)
 
     @property
@@ -197,6 +199,7 @@ class LocalPseudo(AbstractLocalPseudo):
         self._grid = value
         if self._mt is not None:
             self._mt.grid = value
+        self._invalidate_ewald_cache()
 
     @property
     def ions(self):
@@ -213,6 +216,17 @@ class LocalPseudo(AbstractLocalPseudo):
         self._ions = value
         # update zval in ions
         self._ions.set_charges(self.zval)
+        self._invalidate_ewald_cache()
+
+    def _invalidate_ewald_cache(self) -> None:
+        """Drop cached Ewald energy/forces/stress after grid, ions, or MT screening change."""
+
+        ewald_obj = getattr(self, "ewald", None)
+        if ewald_obj is None:
+            return
+        for attr in ("_energy", "_forces", "_stress"):
+            if hasattr(ewald_obj, attr):
+                setattr(ewald_obj, attr, None)
 
     @property
     def Bspline(self):
@@ -220,9 +234,11 @@ class LocalPseudo(AbstractLocalPseudo):
             self._Bspline = CBspline(ions=self.ions, grid=self.grid, order=self.BsplineOrder)
         return self._Bspline
 
-    def get_ewald(self, PME = None):
-        if self.ewald is None :
-            if PME is None : PME = self.PME
+    def get_ewald(self, PME=None):
+        if PME is None:
+            PME = self.PME
+        stale_mt = self.ewald is not None and getattr(self.ewald, "_mt", None) is not self._mt
+        if self.ewald is None or stale_mt:
             self.ewald = ewald(
                 ions=self.ions,
                 grid=self.grid,
@@ -249,7 +265,9 @@ class LocalPseudo(AbstractLocalPseudo):
                 rho = np.sum(density, axis=0)
             else:
                 rho = density
-            ene = np.einsum("ijk, ijk->", self._vreal, rho) * self.grid.dV
+            #ene = np.einsum("ijk, ijk->", self._vreal, rho) * self.grid.dV
+            sprint("int v_PP", self._vreal.integral())
+            ene = (rho*self._vreal).integral(gather=False)
         else:
             ene = 0.0
 
@@ -549,17 +567,15 @@ class LocalPseudo(AbstractLocalPseudo):
             rho = density
         reciprocal_grid = self.grid.get_reciprocal()
         g = reciprocal_grid.g
-        omega = self.grid.volume
         wg = self._mt.wg
         Forces = np.zeros((self.ions.nat, 3))
         for i in range(self.ions.nat):
             strf = self.ions.strf(reciprocal_grid, i)
-            coef_mt = -(wg / omega) * self.ions.charges[i]
+            coef_mt = -wg * self.ions.charges[i]
             for a in range(3):
                 dV_G = coef_mt * (-1j * g[a]) * strf
                 dV_r = dV_G.ifft(force_real=True) 
-                #Forces[i, a] = -np.einsum("ijk, ijk->", dV_r, rho) * self.grid.dV 
-                Forces[i, a] = -(dV_r * rho).integral()
+                Forces[i, a] = -(dV_r * rho).integral(gather=False) # results are gathered later in totalfunctional
         return Forces
 
     def _Force(self, density):
@@ -571,7 +587,6 @@ class LocalPseudo(AbstractLocalPseudo):
             rho = density
         reciprocal_grid = self.grid.get_reciprocal()
         g = reciprocal_grid.g
-        omega = self.grid.volume
         wg = None
         if self._mt is not None:
             wg = self._mt.wg
@@ -582,13 +597,13 @@ class LocalPseudo(AbstractLocalPseudo):
             vl = self.vlines[key]
             Z = self.ions.charges[i]
             if wg is not None:
-                coef = vl - (wg / omega) * Z
+                coef = vl - wg * Z
             else:
                 coef = vl
             for a in range(3):
                 dV_G = coef * (-1j * g[a]) * strf
                 dV_r = dV_G.ifft(force_real=True)
-                Forces[i, a] = -(dV_r * rho).integral()
+                Forces[i, a] = -(dV_r * rho).integral(gather=False)
         return Forces
 
     def _ForcePME(self, density):
