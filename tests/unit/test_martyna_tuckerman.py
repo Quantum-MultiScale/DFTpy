@@ -139,7 +139,7 @@ def test_mt_local_correction_recipro_shape_and_finite(cubic_grid_serial):
     assert np.all(np.isfinite(corr[reciprocal.mask_serial]))
 
 
-def test_mt_ewald_energy_sign_symmetry_same_geometry(cubic_grid_serial):
+def test_mt_ion_ewald_energy_sign_symmetry_same_geometry(cubic_grid_serial):
     """|sum Z S|^2 invariant under swapping signs on every ion yields same MT ion energy."""
 
     g = cubic_grid_serial
@@ -149,19 +149,50 @@ def test_mt_ewald_energy_sign_symmetry_same_geometry(cubic_grid_serial):
     ions1.set_charges([1.0, -1.0])
     ions2 = Ions(symbols=["H", "H"], positions=p.copy(), cell=g.lattice)
     ions2.set_charges([-1.0, 1.0])
-    e1 = ewald(ions=ions1, grid=g, mt=mt)._mt_ion_ewald_energy()
-    e2 = ewald(ions=ions2, grid=g, mt=mt)._mt_ion_ewald_energy()
-    assert e1 == pytest.approx(e2, rel=1e-12)
+    assert mt.ion_ewald_energy(ions1) == pytest.approx(mt.ion_ewald_energy(ions2), rel=1e-12)
 
 
-def test_mt_ewald_forces_have_expected_shape(cubic_grid_serial):
+def test_mt_ion_ewald_energy_matches_explicit_reciprocal_sum(cubic_grid_serial):
     g = cubic_grid_serial
     mt = MartynaTuckerman(g)
-    ions = Ions(symbols=["H"], positions=np.zeros((1, 3)), cell=g.lattice)
-    ions.set_charges([2.5])
-    f = ewald(ions=ions, grid=g, mt=mt)._mt_ion_ewald_forces()
-    assert f.shape == (ions.nat, 3)
-    assert np.all(np.isfinite(f))
+    ions = Ions(symbols=["H"], positions=np.array([[1.2, 0.3, 0.4]]), cell=g.lattice)
+    ions.set_charges([2.0])
+    recip = g.get_reciprocal()
+    stot = ions.total_strf(recip)
+    explicit = 0.5 * np.sum(np.real(np.conjugate(stot) * stot)[recip.mask] * mt.wg[recip.mask]) / g.volume
+    np.testing.assert_allclose(mt.ion_ewald_energy(ions), explicit, rtol=0.0, atol=1e-12)
+
+
+def test_mt_ion_ewald_forces_finite_difference(cubic_grid_serial):
+    g = cubic_grid_serial
+    mt = MartynaTuckerman(g)
+    ions = Ions(symbols=["H", "H"], positions=np.array([[1.5, 0.8, 0.5], [2.6, 0.2, 0.7]]), cell=g.lattice)
+    ions.set_charges([1.0, -0.5])
+    disp = 1e-4
+    f_an = mt.ion_ewald_forces(ions)
+    f_fd = np.zeros_like(f_an)
+    for ia in range(ions.nat):
+        for a in range(3):
+            plus = ions.positions.copy()
+            minus = ions.positions.copy()
+            plus[ia, a] += disp
+            minus[ia, a] -= disp
+            ip = Ions(symbols=ions.symbols, positions=plus, cell=g.lattice)
+            ip.set_charges(ions.charges)
+            im = Ions(symbols=ions.symbols, positions=minus, cell=g.lattice)
+            im.set_charges(ions.charges)
+            f_fd[ia, a] = -(mt.ion_ewald_energy(ip) - mt.ion_ewald_energy(im)) / (2.0 * disp)
+    np.testing.assert_allclose(f_an, f_fd, rtol=2e-4, atol=2e-4)
+
+
+def test_ewald_with_mt_includes_ion_screening_energy(cubic_grid_serial):
+    g = cubic_grid_serial
+    mt = MartynaTuckerman(g)
+    ions = Ions(symbols=["H"], positions=np.array([[1.0, 1.0, 1.0]]), cell=g.lattice)
+    ions.set_charges([1.5])
+    e0 = ewald(ions=ions, grid=g, mt=None).energy
+    e1 = ewald(ions=ions, grid=g, mt=mt).energy
+    np.testing.assert_allclose(e1, e0 + mt.ion_ewald_energy(ions), rtol=1e-10, atol=1e-10)
 
 
 def test_ws_dist_corner_cvp_equals_brute_triclinic():

@@ -195,7 +195,7 @@ class CBspline(object):
 
 
 class ewald(object):
-    def __init__(self, precision=1.0e-8, ions=None, rho=None, grid=None, verbose=False, BsplineOrder=10, PME=False, Bspline=None, mt=None, **kwargs):
+    def __init__(self, precision=1.0e-8, ions=None, rho=None, grid = None, verbose=False, BsplineOrder=10, PME=False, Bspline=None, **kwargs):
         """
         This computes Ewald contributions to the energy.
         INPUT: precision  float, should be bigger than the machine precision and
@@ -235,45 +235,10 @@ class ewald(object):
                 self.Bspline = CBspline(ions=self.ions, grid=self.grid, order=self.order)
             else:
                 self.Bspline = Bspline
-        self._mt = mt
+        self._mt = kwargs.get("mt", None)
         self._energy = None
         self._forces = None
         self._stress = None
-
-    def _get_total_strf(self, reciprocal_grid):
-        return self.ions.total_strf(reciprocal_grid)
-
-    def _mt_ion_ewald_energy(self):
-        if self._mt is None:
-            return 0.0
-        reciprocal_grid = self.grid.get_reciprocal()
-        mask = reciprocal_grid.mask
-        stot = self._get_total_strf(reciprocal_grid)
-        strf_sq = np.real(np.conjugate(stot) * stot)
-        local_sum = np.sum(strf_sq[mask] * self._mt.wg[mask])
-        return 0.5 * self.mp.asum(local_sum) / self.grid.volume
-
-    def _mt_ion_ewald_forces(self):
-        if self._mt is None:
-            return np.zeros((self.ions.nat, 3))
-        reciprocal_grid = self.grid.get_reciprocal()
-        wg = np.ascontiguousarray(self._mt.wg, dtype=np.float64)
-        mask = reciprocal_grid.mask
-        gvec = reciprocal_grid.g
-        stot = self._get_total_strf(reciprocal_grid)
-        inv_vol = 1.0 / self.grid.volume
-
-        forces = np.zeros((self.ions.nat, 3))
-        for ia in range(self.ions.nat):
-            ion_strf = self.ions.charges[ia] * np.exp(
-                -1j * np.einsum("lijk,l->ijk", reciprocal_grid.g, self.ions.positions[ia])
-            )
-            pref = wg[mask] * (
-                ion_strf.real[mask] * stot.imag[mask] - ion_strf.imag[mask] * stot.real[mask]
-            )
-            fi = np.einsum("ij,j->i", gvec[:, mask], pref) * inv_vol
-            forces[ia] = self.mp.vsum(fi)
-        return forces
 
     def __call__(self, *args, **kwargs):
         return self.compute(*args, **kwargs)
@@ -483,30 +448,37 @@ class ewald(object):
 
     @timer()
     def Energy_rec(self):
-        """Reciprocal-space Ewald sum using total ionic ``S_tot(G)`` and
-        ``mp.asum`` over MPI-decomposed :math:`\\mathbf G` shells."""
-
+        ions = self.ions
+        # rec space sum
         reciprocal_grid = self.grid.get_reciprocal()
         gg = reciprocal_grid.gg
         invgg = reciprocal_grid.invgg
-        mask = reciprocal_grid.mask
-        strf = self._get_total_strf(reciprocal_grid)
-        strf_sq = np.real(np.conjugate(strf) * strf)
-        local_sum = np.sum(
-            strf_sq[mask] * np.exp(-gg[mask] / (4.0 * self.eta)) * invgg[mask]
-        )
-        energy = 4.0 * np.pi * reciprocal_grid.mp.asum(local_sum) / self.grid.volume
+        strf = ions.strf(reciprocal_grid, 0) * ions.charges[0]
+        for i in np.arange(1, ions.nat):
+            strf += ions.strf(reciprocal_grid, i) * ions.charges[i]
+        strf_sq = np.conjugate(strf) * strf
+        mask = self.grid.get_reciprocal().mask
+        energy = np.sum(strf_sq[mask] * np.exp(-gg[mask] / (4.0 * self.eta)) * invgg[mask])
+        # energy = np.sum(strf_sq * np.exp(-gg / (4.0 * self.eta)) * invgg) /2.0
+        energy = 4.0 * np.pi * energy.real / self.grid.volume
+        # energy /= self.grid.dV ** 2
+
         return energy
 
     @timer()
     def Energy_corr(self):
-        # self-interaction cancellation term (position independent)
+        # double counting term
         const = -np.sqrt(self.eta / np.pi)
         sum = 0
         sum=np.sum(self.ions.charges*self.ions.charges)
         dc_term = const * sum
 
-        energy = dc_term 
+        # G=0 term of local_PP - Hartree
+        const = -4.0 * np.pi * (1.0 / (4.0 * self.eta * self.grid.volume) / 2.0)
+        sum = self.ions.get_ncharges()
+        gzero_limit = const * sum ** 2
+
+        energy = dc_term + gzero_limit
 
         return energy
 
@@ -526,7 +498,7 @@ class ewald(object):
 
             Ewald_Energy = e_corr + e_real + e_rec
             if self._mt is not None:
-                Ewald_Energy = Ewald_Energy + self._mt_ion_ewald_energy()
+                Ewald_Energy = Ewald_Energy + self._mt.ion_ewald_energy(self.ions)
 
             if self.verbose:
                 sprint("Ewald sum & divergent terms in the Energy:")
@@ -547,7 +519,7 @@ class ewald(object):
                 f_rec = self.Forces_rec()
             Ewald_Forces += f_rec
             if self._mt is not None:
-                Ewald_Forces = Ewald_Forces + self._mt_ion_ewald_forces()
+                Ewald_Forces = Ewald_Forces + self._mt.ion_ewald_forces(self.ions)
             self._forces = Ewald_Forces
         return self._forces
 
@@ -830,12 +802,12 @@ class ewald(object):
         # bm[0] * np.conjugate(bm[0]), bm[1] * np.conjugate(bm[1]), bm[2] * np.conjugate(bm[2]))
         # strf_sq =np.conjugate(strf) * Barray * strf
 
-        reciprocal_grid = self.grid.get_reciprocal()
-        gg = reciprocal_grid.gg
-        invgg = reciprocal_grid.invgg
-        mask = reciprocal_grid.mask
-        local_sum = np.sum(strf_sq[mask] * np.exp(-gg[mask] / (4.0 * self.eta)) * invgg[mask])
-        energy = 4.0 * np.pi * float(reciprocal_grid.mp.asum(local_sum).real) / self.grid.volume
+        gg = self.grid.get_reciprocal().gg
+        invgg = self.grid.get_reciprocal().invgg
+        mask = self.grid.get_reciprocal().mask
+        # energy = np.real(4.0*np.pi*np.sum(strf_sq*np.exp(-gg/(4.0*self.eta))*invgg)) / 2.0 / self.grid.volume
+        energy = np.sum(strf_sq[mask] * np.exp(-gg[mask] / (4.0 * self.eta)) * invgg[mask])
+        energy = 4.0 * np.pi * energy.real / self.grid.volume
         energy /= self.grid.dV ** 2
         return energy
 

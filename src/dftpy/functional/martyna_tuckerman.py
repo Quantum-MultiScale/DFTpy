@@ -428,15 +428,56 @@ class MartynaTuckerman:
         return kern
 
     def local_pp_correction_reciprocal(self, ions):
-        r"""Additive local PP reciprocal potential
+        r"""Additive local PP reciprocal potential (DFTpy ``ions.strf`` convention).
 
-        \( \Delta \tilde v_{\mathrm{loc}}(\mathbf G)
-          = - W(\mathbf G)\sum_I Z_I e^{-i\mathbf G\cdot\mathbf R_I} \).
-
-        Returned array matches the layout of ``ReciprocalGrid.q``.
+        QE writes \(\Delta\tilde v_{\mathrm{loc}} = -W(\mathbf G)\tilde\rho_{\mathrm{ion}}(\mathbf G)\)
+        with \(\tilde\rho_{\mathrm{ion}}=\Omega^{-1}\sum_I Z_I S_I(\mathbf G)\). DFTpy uses
+        dimensionless \(S_I(\mathbf G)=\exp(-i\mathbf G\cdot\mathbf R_I)\) in ``total_strf``, so
+        no extra \(1/\Omega\) is applied here (same convention as ``ewald.Energy_rec``).
         """
 
         reciprocal_grid = self._grid.get_reciprocal()
         summed = ions.total_strf(reciprocal_grid)
-        #sprint(self.wg[0,0,0],np.pi/self._alpha)
         return summed * self.wg * (-1.0)
+
+    def ion_ewald_energy(self, ions, *, mask=None) -> float:
+        r"""Additive MT ion--ion reciprocal energy (DFTpy reciprocal sums).
+
+        With \(S^{\mathrm{tot}}(\mathbf G)=\sum_I Z_I S_I(\mathbf G)\) from ``total_strf``,
+
+        .. math::
+
+           E_{\mathrm{II,MT}}
+           = \frac{1}{2\Omega}\sum_{\mathbf G} W(\mathbf G)\,|S^{\mathrm{tot}}(\mathbf G)|^2,
+
+        matching the \(4\pi/\Omega\) prefactor in ``ewald.Energy_rec`` for \(|S|^2\) sums.
+        \(W(\mathbf G)\) is unchanged by the FFT ``dV`` scaling (same units as \(4\pi/G^2\)).
+        """
+
+        reciprocal_grid = self._grid.get_reciprocal()
+        if mask is None:
+            mask = reciprocal_grid.mask
+        stot = ions.total_strf(reciprocal_grid)
+        strf_sq = np.real(np.conjugate(stot) * stot)
+        return 0.5 * float(np.sum(strf_sq[mask] * self.wg[mask]) / self._grid.volume)
+
+    def ion_ewald_forces(self, ions, *, mask=None) -> np.ndarray:
+        r"""Forces from :meth:`ion_ewald_energy` (Hellmann--Feynman, DFTpy ``strf`` convention)."""
+
+        reciprocal_grid = self._grid.get_reciprocal()
+        if mask is None:
+            mask = reciprocal_grid.mask
+        wg = self.wg
+        gvec = reciprocal_grid.g
+        stot = ions.total_strf(reciprocal_grid)
+        inv_vol = 1.0 / self._grid.volume
+        forces = np.zeros((ions.nat, 3), dtype=np.float64)
+        for ia in range(ions.nat):
+            z = ions.charges[ia]
+            si = ions.strf(reciprocal_grid, ia)
+            for a in range(3):
+                term = wg[mask] * np.real(
+                    np.conjugate(stot[mask]) * (-1j * z * gvec[a][mask] * si[mask])
+                )
+                forces[ia, a] = -inv_vol * np.sum(term)
+        return forces
