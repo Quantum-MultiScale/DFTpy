@@ -22,7 +22,22 @@ class Casida(object):
         self.N = rho0.integral()
         self.grid = rho0.grid
         self.functional = E_v_Evaluator
-        self.fkxc = self.functional(self.rho0, calcType=['V2']).v2rho2
+        # For spin-unpolarized GS, rho is doubled into (rho/2, rho/2). Evaluating XC at
+        # rank-2 density forces the LibXC LDA path for V2. Use the total density
+        # (rank 1) instead so built-in LDA can supply v2rho2 without pylibxc.
+        if self.polarized:
+            self.fkxc = self.functional(self.rho0, calcType=['V2']).v2rho2
+        else:
+            rho_tot = self.rho0[0] + self.rho0[1]
+            v2 = self.functional(rho_tot, calcType=['V2']).v2rho2
+            if v2.rank == 1:
+                self.fkxc = DirectField(
+                    self.grid,
+                    rank=3,
+                    griddata_3d=np.stack([v2, v2, v2], axis=0),
+                )
+            else:
+                self.fkxc = v2
 
     def calc_k(self, psi_i, psi_j, vh):
         if not self.polarized:
