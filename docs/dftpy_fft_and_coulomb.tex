@@ -1,0 +1,445 @@
+% DFTpy: Fourier transforms, Coulomb functionals, G=0, and Martyna--Tuckerman
+% Compile: pdflatex dftpy_fft_and_coulomb.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{longtable}
+\geometry{margin=1in}
+
+\title{DFTpy: Fourier transforms, Coulomb energies,\\
+and Martyna--Tuckerman screening}
+\author{DFTpy documentation (aligned with \texttt{src/dftpy} snapshot)}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This note documents how DFTpy represents periodic grids, discrete Fourier transforms,
+and the evaluation of Hartree, local pseudopotential, and ion--ion (Ewald) energies and
+potentials. It explains the treatment of the $\mathbf G=\mathbf 0$ mode and summarizes
+the Martyna--Tuckerman (MT) Coulomb splitting as implemented in code.
+Each section includes pointers to the main modules and call patterns.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Grids and notation}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{itemize}
+  \item \textbf{Code:} \texttt{src/dftpy/grid.py} (\texttt{DirectGrid}, \texttt{ReciprocalGrid}),
+        \texttt{src/dftpy/field.py} (\texttt{DirectField}, \texttt{ReciprocalField}).
+  \item $\Omega = |\det\mathbf h|$ --- cell volume (\texttt{grid.volume}).
+  \item $N = n_x n_y n_z$ --- number of real-space FFT nodes (\texttt{grid.nnrR});
+        $N_G$ --- number of reciprocal points stored (\texttt{grid.nnrG}, reduced if not \texttt{full}).
+  \item $dV = \Omega/N$ --- volume element per grid point (\texttt{grid.dV}).
+  \item $\mathbf r$ on the direct mesh: corner-origin fractional coords \texttt{DirectGrid.s}
+        mapped to Cartesian \texttt{DirectGrid.r}; $\mathbf G$ on the reciprocal mesh:
+        \texttt{ReciprocalGrid.g}, $G^2=$\texttt{ReciprocalGrid.gg}.
+  \item \textbf{Notebook example cell:} orthorhombic Mg$_8$ with
+        $\mathbf h=\mathrm{diag}(L_x,L_y,L_z)$ and fractional coordinates from
+        \texttt{Mg8.vasp} (\texttt{mg8\_orthorhombic} in the companion notebook).
+        This avoids the slightly irregular lengths in the raw POSCAR while keeping
+        the same atomic layout; MT \texttt{ws\_dist} fast paths apply to diagonal lattices.
+  \item $\tilde\rho(\mathbf G)$ --- coefficients after \texttt{DirectField.fft}; $\rho(\mathbf r)$
+        after \texttt{ReciprocalField.ifft}.
+  \item Structure factors (DFTpy convention):
+        $S_I(\mathbf G)=\exp(-i\mathbf G\cdot\mathbf R_I)$ via \texttt{ions.strf}.
+\end{itemize}
+
+\paragraph{MPI.}
+When \texttt{DFTPY\_MPI=1}, each rank holds a local slab/pencil of the mesh
+(\texttt{BaseGrid.local\_slice}). Sums that represent global integrals use
+\texttt{MP.einsum} / \texttt{comm.allreduce} (see \texttt{src/dftpy/mpi/mpi.py}).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Fourier transforms and normalization}
+\label{sec:fft}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Discrete forward and inverse transforms}
+
+DFTpy wraps NumPy/FFTW/MPI-FFT (\texttt{field.py}, \texttt{mpi/mp\_mpi4py.py}).
+For a real-space field $f(\mathbf r)$ on \texttt{DirectGrid}:
+\begin{equation}
+  \tilde f(\mathbf G) \;=\; dV \times \texttt{FFT}\bigl[f\bigr](\mathbf G),
+\end{equation}
+implemented in \texttt{DirectField.fft} as \texttt{fft\_object(self) * grid.dV}.
+
+The inverse transform is
+\begin{equation}
+  f(\mathbf r) \;=\; \frac{1}{dV}\,\texttt{IFFT}\bigl[\tilde f\bigr](\mathbf r),
+\end{equation}
+in \texttt{ReciprocalField.ifft} as \texttt{ifft\_object(self) / direct\_grid.dV}.
+
+\paragraph{Code structure.}
+\begin{itemize}
+  \item \texttt{DirectField.\_\_new\_\_} attaches \texttt{fft\_object} (serial NumPy, pyfftw, or \texttt{mpi\_fft}).
+  \item \texttt{ReciprocalField.\_\_new\_\_} attaches \texttt{ifft\_object} symmetrically.
+  \item Fields carry \texttt{grid}, \texttt{rank} (scalar or spin-resolved), and optional \texttt{memo} for caching.
+  \item Gradients/Laplacians in $G$-space multiply by $iG_a$ then call \texttt{ifft} (\texttt{field.py}).
+\end{itemize}
+
+\paragraph{Round-trip.}
+With this pairing, \texttt{ifft(fft($f$))} returns $f$ on the same mesh up to floating error
+(verified in the companion notebook).
+
+\subsection{Real-space integrals}
+
+For a \texttt{DirectField} $f$:
+\begin{equation}
+  \int_\Omega f\,d^3r \;\approx\; dV \sum_{\mathbf r} f(\mathbf r),
+\end{equation}
+\texttt{DirectField.integral} $\to$ \texttt{mp.einsum("ijk->", self) * grid.dV}.
+
+\subsection{Reciprocal-space ``integral'' (sum over G / $\Omega$)}
+
+\texttt{ReciprocalField.integral()} computes
+\begin{equation}
+  \texttt{integral()} \;=\; \frac{1}{\Omega}\sum_{\mathbf G} f(\mathbf G).
+\end{equation}
+The implementation writes this as \texttt{sum * grid.dV * grid.nnrG / (2*pi)**3},
+but since the reciprocal-grid volume is $\Omega_G=(2\pi)^3/\Omega$ and
+$dV_G = \Omega_G/N_G$, the compound prefactor simplifies to $1/\Omega$.
+
+\paragraph{Why $1/\Omega$.}
+With DFTpy's FFT convention $\tilde f(\mathbf G)= dV\cdot\mathrm{FFT}[f]$,
+Parseval's theorem gives the real-space inner product
+\begin{equation}
+  dV\sum_{\mathbf r} f(\mathbf r)\,g(\mathbf r)
+  \;=\;
+  \frac{1}{\Omega}\sum_{\mathbf G}\tilde f^*(\mathbf G)\,\tilde g(\mathbf G)
+  \;=\;
+  \bigl(\mathrm{conj}(\tilde f)\cdot\tilde g\bigr)\texttt{.integral()}.
+\end{equation}
+This is the identity used in the local-PP energy
+\texttt{Re (conj($\rho_G$) * $V_G$).integral()}.
+
+\paragraph{Half-grid (\texttt{full=False}) support.}
+When the reciprocal grid stores only the rFFT half-space ($G_z \ge 0$, i.e.\
+\texttt{grid.full = False}), most G-modes have a Hermitian partner $-\mathbf G$
+that is not stored. The implementation applies a multiplicity weight:
+\begin{equation}
+  w(\mathbf G) = \begin{cases}
+    1 & G_z = 0 \text{ or } G_z = N_z/2 \text{ (self-conjugate)},\\
+    2 & \text{otherwise (partner not stored)},
+  \end{cases}
+\end{equation}
+so that $\sum_{\text{stored}} w\,f = \sum_{\text{all}} f$ and \texttt{.integral()}
+returns the correct $1/\Omega$ sum in both layouts. (DFTpy defaults to
+\texttt{full=True}; the weight path is a safety net.)
+
+\paragraph{This is \emph{not} an inverse FFT.}
+Do not confuse \texttt{.integral()} with \texttt{.ifft()}.
+The inverse FFT reconstructs a real-space field ($f = \mathrm{IFFT}[\tilde f]/dV$);
+\texttt{.integral()} returns a \emph{scalar} (the sum of all reciprocal coefficients
+divided by $\Omega$).
+
+\subsection{rFFT layout and \texttt{mask}}
+
+If \texttt{full=False} (default for real fields), the last dimension stores only
+non-negative $G_z$ (NumPy \texttt{rfftfreq}). The boolean \texttt{ReciprocalGrid.mask}
+(exposed also as \texttt{mask\_serial} on the global layout) selects the
+\emph{unique} half-sphere of $G$-vectors for energy/force sums, avoiding double counting
+of Hermitian pairs.
+
+\paragraph{Code structure.}
+\texttt{ReciprocalGrid.mask} is built once from grid dimensions (\texttt{grid.py});
+Ewald and MT sums use \texttt{sum(...[mask])} or \texttt{integral()} which respects the decomposition.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Hartree energy and potential}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Equations}
+
+Hartree potential in reciprocal space:
+\begin{equation}
+  \tilde V_H(\mathbf G) = K(\mathbf G)\,\tilde\rho(\mathbf G),
+  \qquad
+  K(\mathbf G) = \frac{4\pi}{|\mathbf G|^2} + W(\mathbf G)\quad\text{(with MT)},
+\end{equation}
+or $K = 4\pi\,\texttt{invgg}$ without MT (\texttt{invgg} $= 1/G^2$ except at $\mathbf G=0$).
+
+Real-space potential: $V_H(\mathbf r) = \texttt{ifft}(\tilde V_H)$.
+
+Energy (implemented as real-space product, equivalent to the usual $G$-space form with DFTpy weights):
+\begin{equation}
+  E_H = \frac{1}{2}\,dV\sum_{\mathbf r} V_H(\mathbf r)\,\rho(\mathbf r).
+\end{equation}
+
+\subsection{Code structure}
+
+\begin{itemize}
+  \item \textbf{Module:} \texttt{src/dftpy/functional/hartree.py}, class \texttt{Hartree}.
+  \item \texttt{compute}: sum spin components if \texttt{density.rank > 1}; \texttt{rho\_of\_g = rho.fft()};
+        build $\tilde V_H$; \texttt{v\_h\_of\_r = v\_h.ifft(force\_real=...)}.
+  \item Energy: \texttt{np.einsum("ijk,ijk->", v\_h\_of\_r, rho) * dV / 2}.
+  \item MT branch: \texttt{kern = mt.coulomb\_kernel(reciprocal\_grid)} from the shared
+        \texttt{MartynaTuckerman} instance passed in \texttt{Functional(type='HARTREE', mt=mt)}.
+  \item \texttt{stress}: non-MT only; \texttt{Hartree.stress} raises if \texttt{mt} is set.
+  \item Wired in \texttt{TotalFunctional} / \texttt{interface.py} like other functionals.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Local pseudopotential (PSEUDO)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Reciprocal representation of $v_{\mathrm{loc}}$}
+
+The local ionic potential is stored as $\tilde V_{\mathrm{loc}}(\mathbf G)$ in \texttt{LocalPseudo.\_v}
+and as $V_{\mathrm{loc}}(\mathbf r)$ in \texttt{LocalPseudo.\_vreal} after IFFT.
+
+\paragraph{Non-PME path (\texttt{\_PP\_Reciprocal}).}
+For each ion $I$ of species with interpolated $v_{\mathrm{loc}}(q)$ on the $q=|\mathbf G|$ mesh:
+\begin{equation}
+  \tilde V_{\mathrm{loc}}(\mathbf G) \mathrel{+}= v_{\mathrm{loc}}(q)\,S_I(\mathbf G),
+\end{equation}
+loop over ions in \texttt{pseudo/\_\_init\_\_.py}, then \texttt{\_accumulate\_mt\_local\_correction},
+wrap in \texttt{ReciprocalField}.
+
+\paragraph{PME path (\texttt{\_PP\_Reciprocal\_PME}, default).}
+B-spline charge spreading on the real mesh (\texttt{CBspline}, \texttt{ewald.py}), FFT to $G$,
+multiply by species $v_{\mathrm{loc}}(q)$ and the PME influence function \texttt{Bspline.Barray},
+scale by \texttt{nnrR/volume}, add MT correction, store in \texttt{self.\_v}.
+
+\subsection{Energy}
+
+\begin{equation}
+  E_{\mathrm{PP}} = \mathrm{Re}\int \tilde\rho^*(\mathbf G)\,\tilde V_{\mathrm{loc}}(\mathbf G)\,d^3G
+  \;\Rightarrow\;
+  \texttt{Re (conj(rhoG) * self.\_v).integral()}
+\end{equation}
+in \texttt{\_local\_pp\_energy\_reciprocal}, called from \texttt{compute} with
+\texttt{\_force\_density} (sum over spin if needed).
+
+\subsection{Forces (brief)}
+
+\begin{itemize}
+  \item PME real-space stencil: \texttt{\_ForcePME} (local grid via \texttt{get\_Qarray\_mask});
+        MPI: partial sums, then \texttt{\_mpi\_reduce\_forces} inside \texttt{\_ForcePME}.
+  \item MT reciprocal HF add-on (PME only): \texttt{\_Force\_reciprocal(..., mt\_only=True)}.
+  \item Non-PME: full \texttt{\_Force\_reciprocal}.
+\end{itemize}
+
+\paragraph{Code structure.}
+\texttt{src/dftpy/functional/pseudo/\_\_init\_\_.py} (\texttt{LocalPseudo});
+\texttt{local\_PP()} builds \texttt{\_v}/\texttt{\_vreal};
+\texttt{TotalFunctional.get\_forces} adds \texttt{PSEUDO} and Ewald \texttt{II} separately.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Ion--ion interaction (Ewald, \texttt{II})}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Split}
+
+Ewald separates short-range real-space and long-range reciprocal parts with parameter $\eta$
+(\texttt{ewald.eta}, from precision). Total ion--ion energy:
+\begin{equation}
+  E_{\mathrm{II}} = E_{\mathrm{corr}} + E_{\mathrm{real}} + E_{\mathrm{rec}} + E_{\mathrm{II,MT}},
+\end{equation}
+assembled in \texttt{ewald.energy} (property, cached in \texttt{\_energy}).
+
+\subsection{Reciprocal part (\texttt{Energy\_rec})}
+
+With total ionic structure factor $S^{\mathrm{tot}}(\mathbf G)=\sum_I Z_I S_I(\mathbf G)$:
+\begin{equation}
+  E_{\mathrm{rec}} = \frac{4\pi}{\Omega}\sum_{\mathbf G\in\mathrm{mask}}
+  |S^{\mathrm{tot}}(\mathbf G)|^2\,
+  \frac{e^{-|\mathbf G|^2/(4\eta)}}{|\mathbf G|^2}.
+\end{equation}
+Code: build \texttt{strf}, \texttt{strf\_sq}, sum with \texttt{invgg} and Gaussian factor;
+\texttt{energy = 4*pi*real(sum(...))/volume}.
+
+\paragraph{PME variant.}
+\texttt{Energy\_rec\_PME} uses the same B-spline machinery as charge spreading for $S(\mathbf G)$.
+
+\subsection{Correction / $\mathbf G=0$ counterterms (\texttt{Energy\_corr})}
+
+\begin{itemize}
+  \item Self-interaction double counting: $-\sqrt{\eta/\pi}\sum_I Z_I^2$.
+  \item Neutralizing $\mathbf G=0$ background (between local PP and Hartree conventions):
+        $-(4\pi)\,(Q_{\mathrm{tot}}^2)\,/\,(8\eta\Omega)$ with $Q_{\mathrm{tot}}=\sum_I Z_I$.
+\end{itemize}
+\texttt{Energy\_corr} is divided by \texttt{comm.size} when accumulated in \texttt{energy}
+(replicated scalar on all ranks).
+
+\subsection{Real-space part}
+
+Sum over lattice images within $r_{\max}$ (\texttt{Energy\_real} / \texttt{Energy\_real\_fast2} for PME);
+ion forces on MPI use \texttt{split\_number(nat)} for the real-space loop.
+
+\subsection{Code structure}
+
+\begin{itemize}
+  \item \textbf{Module:} \texttt{src/dftpy/ewald.py}, class \texttt{ewald}.
+  \item Constructed from \texttt{LocalPseudo.get\_ewald} (shared \texttt{grid}, \texttt{Bspline}, \texttt{mt}).
+  \item \texttt{TotalFunctional.get\_forces}: \texttt{forces['TOTAL'] += self.ewald.forces};
+        \texttt{ewald.forces} reduces real+reciprocal+MT with \texttt{\_mpi\_reduce\_forces} when MPI.
+  \item Energy exposed as property; stress from real+rec without MT stress term.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Handling of the $\mathbf G=\mathbf 0$ singularity}
+\label{sec:g0}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Coulomb kernel $4\pi/G^2$}
+
+\texttt{ReciprocalGrid.invgg} sets $G^2_{(0,0,0)}=1$ temporarily, computes $1/G^2$,
+then sets \texttt{invgg[0,0,0] = 0} so $4\pi\,\texttt{invgg}$ does not inject a bare
+$1/G^2$ divergence at the DC mode.
+
+\subsection{Hartree without MT}
+
+$\tilde V_H(\mathbf 0)=0$ because \texttt{invgg[0]=0}. The Hartree energy then has no
+explicit $\mathbf G=0$ Coulomb self-energy of the density; neutral systems rely on the
+overall energy model (Ewald corrections, PP, etc.).
+
+\subsection{Hartree and MT kernel}
+
+\texttt{MartynaTuckerman.coulomb\_kernel} returns
+$K = 4\pi\,\texttt{invgg} + W$.
+Since \texttt{invgg[0,0,0]=0} absorbs the bare Coulomb pole, we have
+$K(\mathbf 0) = W(\mathbf 0)$, which is a finite value arising from the
+cancellation of $g\to 0$ singularities between $\mathcal{R}[A]$ and $\tilde f_\alpha$
+(Appendix~B of Martyna \& Tuckerman 1999).  For a neutral system the $\mathbf G=0$
+contributions from Hartree ($\frac{1}{2\Omega}W(0)|\tilde\rho(0)|^2$), local PP
+($-\frac{1}{\Omega}W(0)\tilde\rho(0)S^{\mathrm{tot}}(0)$), and Ewald
+($\frac{1}{2\Omega}W(0)|S^{\mathrm{tot}}(0)|^2$) sum to
+$\frac{W(0)}{2\Omega}|\tilde\rho(0)-S^{\mathrm{tot}}(0)|^2 = 0$, confirming exact cancellation.
+
+\subsection{Local PP (PME)}
+
+In \texttt{\_ForcePME}, only rank 0 zeros \texttt{denGV[0,0,0]} before IFFT to avoid
+feeding a divergent DC component into the real-space stencil.
+
+\subsection{Ewald}
+
+The $1/G^2$ factor uses \texttt{invgg[mask]}; the separate \texttt{Energy\_corr} term
+adds the finite $\mathbf G\to 0$ contribution needed for net neutrality.
+
+\subsection{Practical checklist}
+
+\begin{enumerate}
+  \item Use the same \texttt{ReciprocalGrid.mask} for all $G$-sums.
+  \item Do not compare raw \texttt{wg[0,0,0]} across codes without checking whether
+        $\Gamma$-point screening is zeroed or finite.
+  \item When validating forces, distinguish fixed-grid HF from adiabatic FD (rebuild $\rho$).
+\end{enumerate}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Martyna--Tuckerman method}
+\label{sec:mt}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Purpose}
+
+MT replaces the bare periodic Coulomb interaction by a short-range + smooth long-range split
+so that real-space and reciprocal sums converge faster and remain consistent with a
+modified Poisson solve for Hartree and ionic potentials (Martyna \& Tuckerman,
+\emph{J.\ Chem.\ Phys.}\ \textbf{110}, 2810 (1999)).
+
+\subsection{Building $W(\mathbf G)$ in DFTpy}
+
+\textbf{Module:} \texttt{src/dftpy/functional/martyna\_tuckerman.py}.
+
+\begin{enumerate}
+  \item \textbf{Distances:} \texttt{ws\_dist\_corner\_grid} --- minimum-image distance from
+        corner-origin nodes (\texttt{DirectGrid.s}), general lattice via Babai CVP or fast
+        orthorhombic path.
+  \item \textbf{Real fragment:} $A(\mathbf r)=\mathrm{erf}(\sqrt{\alpha}\,r_{\mathrm{ws}})/r_{\mathrm{ws}}$
+        (\texttt{smooth\_coulomb\_r}).
+  \item \textbf{FFT:} \texttt{aux\_g = DirectField(...).fft().real} $\to \mathcal{R}[A]$.
+  \item \textbf{Analytic long-range in $G$:}
+        $\tilde f_\alpha(\mathbf G)= (4\pi/G^2)\exp(-G^2/(4\alpha))$ for $G^2>0$;
+        at $\mathbf G=\mathbf 0$ the regularised limit is
+        \begin{equation}
+          \tilde f_\alpha(\mathbf 0) = \lim_{G\to 0}\left[
+            \frac{4\pi e^{-G^2/(4\alpha)}}{G^2} - \frac{4\pi}{G^2}\right]
+          = -\frac{\pi}{\alpha},
+        \end{equation}
+        consistent with setting \texttt{invgg[0]=0} for the bare pole
+        (\texttt{smooth\_coulomb\_g}).
+  \item \textbf{Screening:} in \texttt{\_build\_wg\_cache},
+        \begin{equation}
+          W(\mathbf G) = \mathcal{R}[A](\mathbf G) - \tilde f_\alpha(\mathbf G).
+        \end{equation}
+        No additional taper or $\Gamma$-point zeroing is applied; $W(\mathbf 0)$ is the
+        finite value that emerges from the FFT difference (Appendix~B cancellation).
+  \item \textbf{$\alpha$ selection:} \texttt{optimal\_alpha\_beta(gg\_max, lattice)}
+        balances two conditions (geometric mean of their implied bounds):
+        \begin{itemize}
+          \item \emph{G-space convergence} --- $\exp(-G^2_{\max}/(4\alpha))$ negligible
+                $\Rightarrow$ lower bound $\alpha > G^2_{\max}/(4\,\mathrm{erfc}^{-1}(\mathrm{tol})^2)$.
+          \item \emph{Real-space smoothness} --- $\mathrm{erfc}(\sqrt\alpha\,R_c)$ negligible
+                with $R_c=L_{\min}/2$ $\Rightarrow$ upper bound
+                $\alpha < \mathrm{erfc}^{-1}(\mathrm{tol})^2/R_c^2$.
+        \end{itemize}
+        The user may override $\alpha$ via the configuration.
+\end{enumerate}
+
+Cached in \texttt{MartynaTuckerman.\_wg} (\texttt{ReciprocalField}); invalidate via
+\texttt{invalidate\_cache} when the grid changes.
+
+\subsection{Where $W$ enters the energy model}
+
+\begin{longtable}{@{}p{0.28\textwidth}p{0.66\textwidth}@{}}
+\toprule
+\textbf{Term} & \textbf{Implementation} \\
+\midrule
+\endhead
+Hartree & \texttt{coulomb\_kernel}: $K=4\pi/\texttt{invgg}+W$; used in \texttt{hartree.Hartree.compute}. \\
+Local PP & \texttt{local\_pp\_correction\_reciprocal}: $\Delta\tilde v_{\mathrm{loc}}=-W\,S^{\mathrm{tot}}$;
+added in \texttt{\_accumulate\_mt\_local\_correction} before IFFT. \\
+Ion--ion MT & \texttt{ion\_ewald\_energy}: $\frac{1}{2\Omega}\sum_{\mathbf G} W|S^{\mathrm{tot}}|^2$;
+the mask-based sum subtracts $\frac{1}{2}$ of the $\mathbf G=0$ self-conjugate
+mode explicitly. Added in \texttt{ewald.energy}. \\
+Forces & \texttt{ion\_ewald\_forces}; PME HF via \texttt{\_Force\_reciprocal(mt\_only=True)}. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Consistency requirement}
+
+Pass the \textbf{same} \texttt{MartynaTuckerman(grid)} instance into Hartree, PSEUDO, and Ewald
+(\texttt{interface.py} / \texttt{build\_evaluator} in benchmarks). Different instances $\Rightarrow$
+different $W$ and inconsistent total energy.
+
+\subsection{Known limitations (code comments)}
+
+\begin{itemize}
+  \item Hartree stress does not include MT (\texttt{hartree.py}).
+  \item Ewald stress has no MT additive (\texttt{ewald.stress}).
+  \item MPI force reduction must treat decomposed (PME stencil) and replicated ($G$-integral)
+        pieces separately --- see \texttt{total\_functional.\_mpi\_reduce\_forces}.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{End-to-end code map}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Quantity & Primary entry points \\
+\midrule
+$\rho\to\tilde\rho$ & \texttt{DirectField.fft} \\
+$\tilde V\to V$ & \texttt{ReciprocalField.ifft} \\
+$E_H$, $V_H$ & \texttt{Hartree.compute} \\
+$E_{\mathrm{PP}}$, $V_{\mathrm{loc}}$ & \texttt{LocalPseudo.compute}, \texttt{local\_PP} \\
+$E_{\mathrm{II}}$ & \texttt{ewald.energy} \\
+$W$, $K$ & \texttt{MartynaTuckerman.\_build\_wg\_cache}, \texttt{coulomb\_kernel} \\
+Total energy & \texttt{TotalFunctional.Energy} \\
+Total forces & \texttt{TotalFunctional.get\_forces} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Companion notebook: \texttt{docs/dftpy\_fft\_and\_coulomb.ipynb} (executable examples).
+
+\end{document}

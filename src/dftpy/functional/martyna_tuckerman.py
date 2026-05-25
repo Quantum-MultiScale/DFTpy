@@ -35,23 +35,57 @@ from dftpy.mpi import sprint
 
 from dftpy.field import ReciprocalField
 
-def optimal_alpha_beta(gg_max: float, tol: float = 1e-7) -> tuple[float, float]:
-    """Tune *alpha* using a truncation bound analogous to QE ``init_wg_corr``.
+def optimal_alpha_beta(gg_max: float, lattice: np.ndarray | None = None, tol: float = 1e-7) -> tuple[float, float]:
+    r"""Choose the erf/erfc splitting parameter *alpha* for the MT smooth Coulomb.
 
-    gg_max :
-        Largest :math:`|G|^2` sampled on this mesh (masked half-sphere for rFFT).
+    Two conditions must be simultaneously satisfied:
+
+    1. **G-space convergence** — ``exp(-G²_max/(4α))`` negligible so the smooth
+       Coulomb's Fourier series is complete on the grid.
+    2. **Real-space smoothness** — ``erfc(√α · R_c)`` negligible so the
+       real-space smooth Coulomb ``erf(√α r)/r`` has effectively reached ``1/r``
+       well before the Wigner-Seitz boundary, minimising Gibbs truncation
+       artefacts in the FFT.
+
+    The optimal alpha is the geometric mean of the lower bound (from condition 1)
+    and upper bound (from condition 2), ensuring both are comfortably satisfied.
+
+    Parameters
+    ----------
+    gg_max : float
+        Largest :math:`|\mathbf G|^2` on the reciprocal grid.
+    lattice : (3, 3) array or None
+        Direct lattice rows.  Used to determine the WS half-width for condition 2.
+        If None, only condition 1 is applied (legacy QE-style).
+    tol : float
+        Target truncation error (default 1e-7).
     """
-
     pi = np.pi
-    alpha = 2.5
-    upperbound = 1.0
-    while upperbound > tol:
-        alpha -= 0.1
-        if alpha <= 0:
-            raise ValueError(
-                "MartynaTuckerman: alpha tuning failed; increase FFT resolution or cutoff."
-            )
-        upperbound = np.sqrt(2.0 * alpha / pi) * special.erfc(np.sqrt(gg_max / (4.0 * alpha)))
+
+    # Condition 1: lower bound on alpha
+    # erfc(sqrt(gg_max/(4*alpha))) < tol => sqrt(gg_max/(4*alpha)) > erfc_inv(tol)
+    # => alpha > gg_max / (4 * erfc_inv(tol)^2)
+    erfc_inv_tol = special.erfcinv(tol)
+    alpha_lower = gg_max / (4.0 * erfc_inv_tol ** 2) if erfc_inv_tol > 0 else 0.1
+
+    if lattice is None:
+        alpha = max(alpha_lower, 0.1)
+    else:
+        # Condition 2: upper bound on alpha
+        # erfc(sqrt(alpha) * R_c) < tol => sqrt(alpha)*R_c > erfc_inv(tol)
+        # => alpha < erfc_inv(tol)^2 / R_c^2
+        # R_c = half the shortest lattice vector length (inscribed sphere of WS cell)
+        lat = np.asarray(lattice, dtype=np.float64)
+        lengths = np.sqrt(np.sum(lat ** 2, axis=1))
+        r_c = 0.5 * np.min(lengths)
+        alpha_upper = erfc_inv_tol ** 2 / r_c ** 2 if r_c > 1e-10 else 10.0
+
+        if alpha_lower >= alpha_upper:
+            alpha = np.sqrt(alpha_lower * alpha_upper)
+        else:
+            alpha = np.sqrt(alpha_lower * alpha_upper)
+
+    alpha = max(alpha, 0.01)
     beta = 0.5 / alpha
     sprint("Best MT Alpha: ", alpha)
     return alpha, beta
@@ -311,7 +345,7 @@ def _build_wg_cache(mt: "MartynaTuckerman") -> None:
             gg_max = float(grid.mp.comm.allreduce(gg_local, op=grid.mp.MPI.MAX))
         else:
             gg_max = gg_local
-        mt._alpha, mt._beta = optimal_alpha_beta(gg_max)
+        mt._alpha, mt._beta = optimal_alpha_beta(gg_max, lattice=grid.lattice)
     else:
         mt._alpha = mt._user_alpha
         mt._beta = 0.5 / mt._alpha
