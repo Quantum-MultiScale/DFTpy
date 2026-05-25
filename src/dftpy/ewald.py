@@ -215,6 +215,10 @@ class ewald(object):
         else:
             raise AttributeError("Must pass ions to Ewald")
 
+        self.rho = None
+        if rho is not None:
+            self.rho = rho
+
         if self.grid is None:
             if rho is not None :
                 self.grid =rho.grid
@@ -276,6 +280,7 @@ class ewald(object):
                 NotGoodEta = False
             else:
                 eta = eta - 0.01
+        sprint("Best Ewald Eta: ", eta)
         return eta
 
     @timer()
@@ -459,9 +464,7 @@ class ewald(object):
         strf_sq = np.conjugate(strf) * strf
         mask = self.grid.get_reciprocal().mask
         energy = np.sum(strf_sq[mask] * np.exp(-gg[mask] / (4.0 * self.eta)) * invgg[mask])
-        # energy = np.sum(strf_sq * np.exp(-gg / (4.0 * self.eta)) * invgg) /2.0
         energy = 4.0 * np.pi * energy.real / self.grid.volume
-        # energy /= self.grid.dV ** 2
 
         return energy
 
@@ -472,15 +475,8 @@ class ewald(object):
         sum = 0
         sum=np.sum(self.ions.charges*self.ions.charges)
         dc_term = const * sum
+        return dc_term 
 
-        # G=0 term of local_PP - Hartree
-        const = -4.0 * np.pi * (1.0 / (4.0 * self.eta * self.grid.volume) / 2.0)
-        sum = self.ions.get_ncharges()
-        gzero_limit = const * sum ** 2
-
-        energy = dc_term + gzero_limit
-
-        return energy
 
     @property
     @timer()
@@ -512,6 +508,8 @@ class ewald(object):
     @timer()
     def forces(self):
         if self._forces is None:
+            from dftpy.functional.total_functional import _mpi_reduce_forces
+
             Ewald_Forces = self.Forces_real()
             if self.PME:
                 f_rec = self.Forces_rec_PME()
@@ -520,6 +518,8 @@ class ewald(object):
             Ewald_Forces += f_rec
             if self._mt is not None:
                 Ewald_Forces = Ewald_Forces + self._mt.ion_ewald_forces(self.ions)
+            if self.mp.is_mpi:
+                Ewald_Forces = _mpi_reduce_forces(self.mp, Ewald_Forces)
             self._forces = Ewald_Forces
         return self._forces
 

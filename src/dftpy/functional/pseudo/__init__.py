@@ -256,18 +256,18 @@ class LocalPseudo(AbstractLocalPseudo):
         corr = self._mt.local_pp_correction_reciprocal(self.ions)
         v_reciprocal += corr
 
+    def _local_pp_energy_reciprocal(self, rho):
+        r"""``E = Re ∫ conj(ρ_G) V_G`` using :meth:`ReciprocalField.integral` (DFTpy FFT weights)."""
+
+        rhoG = rho.fft()
+        return np.real((np.conj(rhoG) * self._v).integral())
+
     def compute(self, density, calcType={"E", "V"}, **kwargs):
         if self._vreal is None:
             self.local_PP()
         pot = self._vreal
         if 'E' in calcType:
-            if density.rank > 1:
-                rho = np.sum(density, axis=0)
-            else:
-                rho = density
-            #ene = np.einsum("ijk, ijk->", self._vreal, rho) * self.grid.dV
-            sprint("int v_PP", self._vreal.integral())
-            ene = (rho*self._vreal).integral(gather=False)
+            ene = self._local_pp_energy_reciprocal(self._force_density(density))
         else:
             ene = 0.0
 
@@ -307,12 +307,10 @@ class LocalPseudo(AbstractLocalPseudo):
         self.local_PP()
         if self.PME:
             f = self._ForcePME(rho)
-            # Δv_MT(G) is added to V(G) in reciprocal space but _ForcePME only differentiates the
-            # B-spline × v_loc path; add Hellmann–Feynman ∂Δv_MT/∂R · ρ (non-PME folds this into _Force).
             if self._mt is not None:
-                f = f + self._mt_local_hf_forces(rho)
+                f = f + self._Force_reciprocal(rho, mt_only=True)
         else:
-            f = self._Force(rho)
+            f = self._Force_reciprocal(rho)
         return f
 
     def calc_force_cc(self, potential = None, rhod = None, ions = None):
@@ -550,61 +548,40 @@ class LocalPseudo(AbstractLocalPseudo):
         stress /= self.grid.volume
         return stress
 
-    def _mt_local_hf_forces(self, density):
-        """Hellmann–Feynman forces from ∂Δv_MT/∂R · ρ only (PME path).
+    def _force_density(self, density):
+        if density.rank > 1:
+            return np.sum(density, axis=0)
+        return density
 
-        ``Δv_MT = -(W/Ω) Σ_J Z_J e^{-iG·R_J}`` is accumulated onto ``V(G)``; its derivative w.r.t.
-        ``R_I`` is included here when using ``_ForcePME`` (which does not differentiate ``Δv_MT``).
-        Non-PME ``_Force`` already folds ``-(W/Ω) Z_I`` into the per-ion coefficient on ``∂S_I/∂R``.
+    def _Force_reciprocal(self, density, *, mt_only=False):
+        r"""Hellmann–Feynman forces consistent with :meth:`_local_pp_energy_reciprocal`.
+
+        ``F_Ia = -Re ∫ conj(ρ_G) ∂V/∂R_Ia`` with ``∂V/∂R = coef(G) (-i G_a) S_I(G)`` and
+        ``coef = v_loc``, ``v_loc - W Z_I``, or ``-W Z_I`` (``mt_only`` PME add-on).
         """
 
-        if self._mt is None:
-            return np.zeros((self.ions.nat, 3))
-
-        if density.rank > 1:
-            rho = np.sum(density, axis=0)
-        else:
-            rho = density
+        rho = self._force_density(density)
+        rhoG = rho.fft()
         reciprocal_grid = self.grid.get_reciprocal()
         g = reciprocal_grid.g
-        wg = self._mt.wg
-        Forces = np.zeros((self.ions.nat, 3))
-        for i in range(self.ions.nat):
-            strf = self.ions.strf(reciprocal_grid, i)
-            coef_mt = -wg * self.ions.charges[i]
-            for a in range(3):
-                dV_G = coef_mt * (-1j * g[a]) * strf
-                dV_r = dV_G.ifft(force_real=True) 
-                Forces[i, a] = -(dV_r * rho).integral(gather=False) # results are gathered later in totalfunctional
-        return Forces
-
-    def _Force(self, density):
-        """Non-PME HF forces: ``-∫ ∂v_loc/∂R ρ dr`` with MT folded into ``∂v`` when ``mt`` is set."""
-
-        if density.rank > 1:
-            rho = np.sum(density, axis=0)
-        else:
-            rho = density
-        reciprocal_grid = self.grid.get_reciprocal()
-        g = reciprocal_grid.g
-        wg = None
-        if self._mt is not None:
-            wg = self._mt.wg
-        Forces = np.zeros((self.ions.nat, 3))
+        wg = self._mt.wg if self._mt is not None else None
+        forces = np.zeros((self.ions.nat, 3))
         for i in range(self.ions.nat):
             key = self.ions.symbols[i]
             strf = self.ions.strf(reciprocal_grid, i)
-            vl = self.vlines[key]
-            Z = self.ions.charges[i]
-            if wg is not None:
-                coef = vl - wg * Z
+            if mt_only:
+                coef = -wg * self.ions.charges[i]
+            elif wg is not None:
+                coef = self.vlines[key] - wg * self.ions.charges[i]
             else:
-                coef = vl
+                coef = self.vlines[key]
             for a in range(3):
-                dV_G = coef * (-1j * g[a]) * strf
-                dV_r = dV_G.ifft(force_real=True)
-                Forces[i, a] = -(dV_r * rho).integral(gather=False)
-        return Forces
+                dV_G = ReciprocalField(
+                    reciprocal_grid,
+                    griddata_3d=np.asarray(coef * (-1j * g[a]) * strf, dtype=np.complex128),
+                )
+                forces[i, a] = -np.real((np.conj(rhoG) * dV_G).integral())
+        return forces
 
     def _ForcePME(self, density):
         if density.rank > 1:
@@ -654,6 +631,10 @@ class LocalPseudo(AbstractLocalPseudo):
                                                                                          l123A[0][mask], l123A[1][mask],
                                                                                          l123A[2][mask]][:, np.newaxis],
                                         axis=0)
+        if rho.mp.is_mpi:
+            from dftpy.functional.total_functional import _mpi_reduce_forces
+
+            Forces = _mpi_reduce_forces(rho.mp, Forces)
         return Forces
 
     def _StressPME(self, density, energy=None):

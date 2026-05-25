@@ -69,7 +69,7 @@ def ConfigParser(config, ions=None, rhoini=None, pseudo=None, grid=None, mp = No
         alpha_mt = mt_conf.get("alpha")
         if alpha_mt is not None:
             alpha_mt = float(alpha_mt)
-        mt = MartynaTuckerman(grid, alpha=alpha_mt)
+        mt = MartynaTuckerman(grid, ions=ions, alpha=alpha_mt)
         sprint("Martyna–Tuckerman screening is enabled (alpha={})".format("auto" if alpha_mt is None else alpha_mt))
     ############################## PSEUDO  ##############################
     PPlist = {}

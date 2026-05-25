@@ -31,14 +31,9 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import special
 
-from dftpy.constants import environ
 from dftpy.mpi import sprint
 
 from dftpy.field import ReciprocalField
-
-print=False
-if environ["LOGLEVEL"] >= 2:
-    print=True
 
 def optimal_alpha_beta(gg_max: float, tol: float = 1e-7) -> tuple[float, float]:
     """Tune *alpha* using a truncation bound analogous to QE ``init_wg_corr``.
@@ -48,7 +43,7 @@ def optimal_alpha_beta(gg_max: float, tol: float = 1e-7) -> tuple[float, float]:
     """
 
     pi = np.pi
-    alpha = 2.9
+    alpha = 2.5
     upperbound = 1.0
     while upperbound > tol:
         alpha -= 0.1
@@ -58,8 +53,8 @@ def optimal_alpha_beta(gg_max: float, tol: float = 1e-7) -> tuple[float, float]:
             )
         upperbound = np.sqrt(2.0 * alpha / pi) * special.erfc(np.sqrt(gg_max / (4.0 * alpha)))
     beta = 0.5 / alpha
-    if print: sprint("MT alpha: ", alpha) 
-    return float(alpha), float(beta)
+    sprint("Best MT Alpha: ", alpha)
+    return alpha, beta
 
 
 def _lattice_primitive_orthogonal(lat: np.ndarray, atol: float = 1.0e-9) -> bool:
@@ -68,24 +63,6 @@ def _lattice_primitive_orthogonal(lat: np.ndarray, atol: float = 1.0e-9) -> bool
     metric = lat @ lat.T
     diag = np.diag(np.diagonal(metric))
     return bool(np.allclose(metric, diag, atol=atol))
-
-
-def _ws_dist_nmax_auto(
-    lattice_rows: np.ndarray, pts: np.ndarray | None = None, pad: int = 2
-) -> int:
-    """Upper bound on integer shifts for MIC-from-corner on a periodic grid."""
-
-    lat = np.asarray(lattice_rows, dtype=np.float64)
-    inv = np.linalg.inv(lat)
-    corners = np.array(
-        [[i, j, k] for i in (0.0, 1.0) for j in (0.0, 1.0) for k in (0.0, 1.0)],
-        dtype=np.float64,
-    )
-    frac_extent = int(np.ceil(np.max(np.abs(corners @ inv.T)))) + pad
-    if pts is not None:
-        pts = np.asarray(pts, dtype=np.float64).reshape(-1, 3)
-        frac_extent = max(frac_extent, int(np.ceil(np.max(np.abs(pts @ inv.T)))) + pad)
-    return max(frac_extent, 2)
 
 
 def _ws_dist_corner_orthogonal_fractional(s: np.ndarray, lattice_rows: np.ndarray) -> np.ndarray:
@@ -328,8 +305,12 @@ def _build_wg_cache(mt: "MartynaTuckerman") -> None:
     gg = reciprocal.gg
 
     if mt._user_alpha is None:
-        mask_sel = reciprocal.mask_serial
-        gg_max = np.max(gg[mask_sel])
+        mask_sel = reciprocal.mask
+        gg_local = float(np.max(gg[mask_sel])) if np.any(mask_sel) else 0.0
+        if grid.mp.is_mpi:
+            gg_max = float(grid.mp.comm.allreduce(gg_local, op=grid.mp.MPI.MAX))
+        else:
+            gg_max = gg_local
         mt._alpha, mt._beta = optimal_alpha_beta(gg_max)
     else:
         mt._alpha = mt._user_alpha
@@ -338,14 +319,10 @@ def _build_wg_cache(mt: "MartynaTuckerman") -> None:
     ws_r = _ws_dist_corner_grid(grid)
     aux_r = DirectField(grid=grid, griddata_3d=smooth_coulomb_r(ws_r, mt._alpha))
     aux_g = aux_r.fft().real
-    sprint("aux_g", aux_g[0,0,0])
-    #aux_g[gg <= 1e-8]*= 1.0/grid.volume
 
     wg = aux_g - smooth_coulomb_g(gg, mt._alpha, mt._beta)
-    sprint("wg", wg[0,0,0])
-    #wg[gg <= 1e-8]*= 1.0/grid.volume
-    mt._wg = ReciprocalField(grid=reciprocal, data=wg) 
-    #* np.exp(-gg*mt._beta/4.0)**2 # same as mt in QE to cut off high Gs.
+    sprint("wg", wg[0, 0, 0])
+    mt._wg = ReciprocalField(grid=reciprocal, data=wg)
 
 
 def _touch_wg(mt: "MartynaTuckerman") -> None:
@@ -365,13 +342,19 @@ def smooth_coulomb_r(r: np.ndarray, alpha: float, eps: float = 1.0e-6) -> np.nda
 
 
 def smooth_coulomb_g(gg: np.ndarray, alpha: float, beta: float, eps: float = 1.0e-8) -> np.ndarray:
-    """QE ``smooth_coulomb_g`` with |G|\\ :sup:`2` matching ``ReciprocalGrid.gg``."""
+    """QE ``smooth_coulomb_g`` with |G|\\ :sup:`2` matching ``ReciprocalGrid.gg``.
 
+    At G=0 the bare expression `4π exp(-G²/(4α))/G²` diverges.  Since the code
+    regularises `4π/G²` → 0 at G=0 (via ``invgg[0,0,0]=0``), the consistent
+    G=0 value here is the finite limit of the *difference*:
+
+        lim_{G→0} [4π exp(-G²/(4α))/G² − 4π/G²] = −π/α
+    """
     fpi = 4.0 * np.pi
     out = np.empty_like(gg, dtype=np.float64)
     mask = gg > eps
     out[mask] = fpi * np.exp(-gg[mask] / (4.0 * alpha)) / gg[mask]
-    out[~mask] =  -fpi/ (4.0 * alpha) #* (1.0 / (4.0 * alpha) + 2.0 * beta / 4.0)
+    out[~mask] = -np.pi / alpha
     return out
 
 
@@ -383,9 +366,11 @@ class MartynaTuckerman:
 
     __slots__ = ("_alpha", "_beta", "_grid", "_user_alpha", "_wg")
 
-    def __init__(self, grid, alpha: float | None = None):
+    def __init__(self, grid, alpha=None, **kwargs):
         self._grid = grid
         self._user_alpha = alpha
+        if alpha is not None:
+            sprint("Given MT Alpha: ", alpha) 
         self._wg = None
         self._alpha = None
         self._beta = None
@@ -423,7 +408,6 @@ class MartynaTuckerman:
         of ``kern[0,0,0]``.
         """
         invgg = reciprocal_grid.invgg
-        #sprint(self.wg[0,0,0],np.pi/self._alpha)
         kern = 4.0 * np.pi * invgg + self.wg
         return kern
 
@@ -448,10 +432,12 @@ class MartynaTuckerman:
         .. math::
 
            E_{\mathrm{II,MT}}
-           = \frac{1}{2\Omega}\sum_{\mathbf G} W(\mathbf G)\,|S^{\mathrm{tot}}(\mathbf G)|^2,
+           = \frac{1}{2\Omega}\sum_{\mathbf G} W(\mathbf G)\,|S^{\mathrm{tot}}(\mathbf G)|^2.
 
-        matching the \(4\pi/\Omega\) prefactor in ``ewald.Energy_rec`` for \(|S|^2\) sums.
-        \(W(\mathbf G)\) is unchanged by the FFT ``dV`` scaling (same units as \(4\pi/G^2\)).
+        The mask selects the independent half of G-vectors for paired modes,
+        so ``Σ_mask(G≠0) = (1/2) Σ_all(G≠0)``.  However G=0 is self-conjugate
+        (no partner excluded by mask), so it must be counted with weight 1/2
+        explicitly — same reason ``Energy_rec`` avoids this via ``invgg[0]=0``.
         """
 
         reciprocal_grid = self._grid.get_reciprocal()
@@ -459,10 +445,17 @@ class MartynaTuckerman:
             mask = reciprocal_grid.mask
         stot = ions.total_strf(reciprocal_grid)
         strf_sq = np.real(np.conjugate(stot) * stot)
-        return 0.5 * float(np.sum(strf_sq[mask] * self.wg[mask]) / self._grid.volume)
+        energy = np.sum(strf_sq[mask] * self.wg[mask]) / self._grid.volume
+        energy -= 0.5 * strf_sq[0, 0, 0] * self.wg[0, 0, 0] / self._grid.volume
+        return energy
 
     def ion_ewald_forces(self, ions, *, mask=None) -> np.ndarray:
-        r"""Forces from :meth:`ion_ewald_energy` (Hellmann--Feynman, DFTpy ``strf`` convention)."""
+        r"""Forces from :meth:`ion_ewald_energy` (Hellmann--Feynman, DFTpy ``strf`` convention).
+
+        The factor of 2 arises from the derivative of \(|S|^2 = S^* S\):
+        \(d|S|^2/dR = 2\,\mathrm{Re}[S^* \, dS/dR]\).  Combined with the
+        mask (independent half-sum), no additional 1/2 is needed.
+        """
 
         reciprocal_grid = self._grid.get_reciprocal()
         if mask is None:
@@ -479,5 +472,5 @@ class MartynaTuckerman:
                 term = wg[mask] * np.real(
                     np.conjugate(stot[mask]) * (-1j * z * gvec[a][mask] * si[mask])
                 )
-                forces[ia, a] = -inv_vol * np.sum(term)
+                forces[ia, a] = -2.0 * inv_vol * np.sum(term)
         return forces

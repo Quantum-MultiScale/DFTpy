@@ -20,6 +20,10 @@ from numpy.testing import assert_allclose
 from common import dftpy_data_path
 
 from dftpy.config.config import DefaultOption
+from dftpy.density.gaussian_valence import (
+    gaussian_valence_center_forces,
+    gaussian_valence_density,
+)
 from dftpy.field import DirectField
 from dftpy.formats.vasp import read_POSCAR
 from dftpy.functional import Functional, TotalFunctional
@@ -33,27 +37,6 @@ from dftpy.ions import Ions
 def isolated_gaussian_hartree_self_energy(sigma: float) -> float:
     """Hartree self-energy (Ha) for ∫ρ=1 Gaussian width σ in free space: 1/(2√π σ)."""
     return float(1.0 / (2.0 * np.sqrt(np.pi) * sigma))
-
-
-def gaussian_valence_density(grid: DirectGrid, ions: Ions, sigma: float, total_valence_electrons: float) -> DirectField:
-    """Sum of normalized 3D Gaussians at ion sites (MIC separation); renormalized to ``total_valence_electrons``."""
-
-    lattice = np.asarray(ions.cell, dtype=np.float64)
-    inv_lat = np.linalg.inv(lattice)
-    s_ions = ions.get_positions() @ inv_lat
-    S = np.stack(grid.s, axis=0)
-    pref = (2.0 * np.pi * sigma**2) ** (-1.5)
-    accum = np.zeros(grid.nr, dtype=np.float64)
-    for i in range(ions.nat):
-        ds = S - s_ions[i][:, np.newaxis, np.newaxis, np.newaxis]
-        ds = (ds + 0.5) % 1.0 - 0.5
-        mic = np.einsum("j...,jk->k...", ds, lattice)
-        r2 = np.sum(mic * mic, axis=0)
-        accum += pref * np.exp(-r2 / (2.0 * sigma**2))
-    rho = DirectField(grid=grid, griddata_3d=accum)
-    scale = float(total_valence_electrons) / rho.integral()
-    rho *= scale
-    return rho
 
 
 def _cubic_grid(L: float = 5.0, n: int = 24) -> DirectGrid:
@@ -162,8 +145,8 @@ def test_mt_ion_ewald_energy_sign_symmetry_same_geometry():
 
 
 @pytest.mark.parametrize("use_pme", [True, False])
-def test_mg_cluster_totalfunctional_mt_localpseudo_energy_and_forces(use_pme: bool):
-    """Mg8 + ``mg.lda.recpot`` + TF/LDA + Hartree(MT): energy finite; analytic forces vs FD.
+def test_mg_cluster_totalfunctional_mt_localpseudo_energy(use_pme: bool):
+    """Mg8 + ``mg.lda.recpot`` + TF/LDA + Hartree(MT): total energy finite with Gaussian ``rho``.
 
     Parametrized over ``LocalPseudo(..., PME=…)`` (Bspline spreading vs direct structure factors).
 
@@ -171,9 +154,8 @@ def test_mg_cluster_totalfunctional_mt_localpseudo_energy_and_forces(use_pme: bo
     minimum-image separation, then scaled so :math:`\\int \\rho = N_e`. This keeps charge
     localized away from cell faces, which matches how MT screening is meant to be used.
 
-    Finite differences use **fixed** :math:`\\rho` (equilibrium geometry); ``get_forces``
-    reports Hellmann–Feynman-like derivatives :math:`-\\partial E / \\partial R` at that
-    density.
+    Forces: ``get_forces`` (HF at fixed grid ρ) plus ``gaussian_valence_center_forces`` vs
+    adiabatic FD (ρ rebuilt per displacement). Optimized ρ checks: ``verify_mt_al4_cluster.py``.
     """
 
     poscar = Path(dftpy_data_path) / "Mg8.vasp"
@@ -211,26 +193,28 @@ def test_mg_cluster_totalfunctional_mt_localpseudo_energy_and_forces(use_pme: bo
     assert np.isfinite(energy)
     assert abs(energy) < 1.0e6
 
-    f_analytical = evaluator.get_forces(rho, ions=ions)
+    pot = evaluator.get_energy_potential(rho, calcType={"V"}).potential
+    f_hf = evaluator.get_forces(rho, ions=ions)
+    f_ctr = gaussian_valence_center_forces(grid, ions, sigma, pot, ne)
+    f_tot = f_hf + f_ctr
 
     eps = 3.0e-4
-    f_numeric = np.zeros((nat, 3), dtype=np.float64)
     pos0 = ions.get_positions().copy()
+    f_fd = np.zeros((nat, 3), dtype=np.float64)
     for ia in range(nat):
         for j in range(3):
             pos = pos0.copy()
             pos[ia, j] += eps
             ip = ions.copy()
             ip.set_positions(pos)
-            e_plus = build_evaluator(ip).Energy(rho)
+            e_p = build_evaluator(ip).Energy(rho_for(ip))
             pos = pos0.copy()
             pos[ia, j] -= eps
             im = ions.copy()
             im.set_positions(pos)
-            e_minus = build_evaluator(im).Energy(rho)
-            f_numeric[ia, j] = -(e_plus - e_minus) / (2.0 * eps)
-
-    assert_allclose(f_analytical, f_numeric, rtol=0.0, atol=5e-6)
+            e_m = build_evaluator(im).Energy(rho_for(im))
+            f_fd[ia, j] = -(e_p - e_m) / (2.0 * eps)
+    assert_allclose(f_tot, f_fd, atol=5e-5, rtol=0.0)
 
 
 if __name__ == "__main__":

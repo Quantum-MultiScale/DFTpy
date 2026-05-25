@@ -159,7 +159,9 @@ def test_mt_ion_ewald_energy_matches_explicit_reciprocal_sum(cubic_grid_serial):
     ions.set_charges([2.0])
     recip = g.get_reciprocal()
     stot = ions.total_strf(recip)
-    explicit = 0.5 * np.sum(np.real(np.conjugate(stot) * stot)[recip.mask] * mt.wg[recip.mask]) / g.volume
+    strf_sq = np.real(np.conjugate(stot) * stot)
+    explicit = np.sum(strf_sq[recip.mask] * mt.wg[recip.mask]) / g.volume
+    explicit -= 0.5 * strf_sq[0, 0, 0] * mt.wg[0, 0, 0] / g.volume
     np.testing.assert_allclose(mt.ion_ewald_energy(ions), explicit, rtol=0.0, atol=1e-12)
 
 
