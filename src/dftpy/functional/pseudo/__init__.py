@@ -256,18 +256,13 @@ class LocalPseudo(AbstractLocalPseudo):
         corr = self._mt.local_pp_correction_reciprocal(self.ions)
         v_reciprocal += corr
 
-    def _local_pp_energy_reciprocal(self, rho):
-        r"""``E = Re ∫ conj(ρ_G) V_G`` using :meth:`ReciprocalField.integral` (DFTpy FFT weights)."""
-
-        rhoG = rho.fft()
-        return np.real((np.conj(rhoG) * self._v).integral())
-
     def compute(self, density, calcType={"E", "V"}, **kwargs):
         if self._vreal is None:
             self.local_PP()
         pot = self._vreal
         if 'E' in calcType:
-            ene = self._local_pp_energy_reciprocal(self._force_density(density))
+            rho = self._force_density(density)
+            ene = np.einsum("ijk, ijk->", pot, rho) * self.grid.dV
         else:
             ene = 0.0
 
@@ -554,7 +549,7 @@ class LocalPseudo(AbstractLocalPseudo):
         return density
 
     def _Force_reciprocal(self, density, *, mt_only=False):
-        r"""Hellmann–Feynman forces consistent with :meth:`_local_pp_energy_reciprocal`.
+        r"""Hellmann–Feynman forces in reciprocal space.
 
         ``F_Ia = -Re ∫ conj(ρ_G) ∂V/∂R_Ia`` with ``∂V/∂R = coef(G) (-i G_a) S_I(G)`` and
         ``coef = v_loc``, ``v_loc - W Z_I``, or ``-W Z_I`` (``mt_only`` PME add-on).
