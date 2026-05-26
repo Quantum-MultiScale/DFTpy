@@ -57,46 +57,6 @@ def test_direct_grid_r_mic_cell_center_near_zero():
     assert g.r_mic[mid] < 1e-10
     assert g.rmic[mid] == pytest.approx(g.r_mic[mid])
 
-
-def test_martyna_build_wg_finite_at_gamma():
-    g = _cubic_grid()
-    mt = MartynaTuckerman(g)
-    wg = mt.wg
-    assert np.isfinite(wg[0, 0, 0])
-    recip = g.get_reciprocal()
-    assert np.all(np.isfinite(wg[recip.mask_serial]))
-
-
-def test_hartree_mt_changes_gaussian_energy():
-    g = _cubic_grid()
-    sigma = 0.85
-    rr = g.rr
-    rho = DirectField(
-        grid=g, griddata_3d=(2.0 * np.pi * sigma**2) ** (-1.5) * np.exp(-rr / (2.0 * sigma**2))
-    )
-    e_pw = Hartree()(rho, calcType={"E"}).energy
-    e_mt = Hartree(mt=MartynaTuckerman(g))(rho, calcType={"E"}).energy
-    assert abs(e_pw - e_mt) > 1e-10
-
-
-def test_hartree_mt_pw_difference_matches_wg_contribution():
-    L, n, sigma = 6.5, 32, 1.05
-    lattice = np.eye(3) * L
-    g = DirectGrid(lattice=lattice, nr=[n, n, n], origin=np.array([L / 2, L / 2, L / 2]))
-    rho = DirectField(grid=g, griddata_3d=(2.0 * np.pi * sigma**2) ** (-1.5) * np.exp(-g.r_mic**2 / (2.0 * sigma**2)))
-    rho /= rho.integral()
-    mt = MartynaTuckerman(g)
-    recip = g.get_reciprocal()
-    kern_mt = mt.coulomb_kernel(recip)
-    kern_pw = recip.invgg * 4.0 * np.pi
-    rho_g = rho.fft()
-    v_wg_r = (rho_g * (kern_mt - kern_pw)).ifft(force_real=True)
-    delta_wg = 0.5 * np.einsum("ijk, ijk->", v_wg_r, rho, optimize=True) * g.dV
-    e_pw = Hartree()(rho, calcType={"E"}).energy
-    e_mt = Hartree(mt=mt)(rho, calcType={"E"}).energy
-    assert_allclose(e_mt - e_pw, delta_wg, rtol=1e-10, atol=1e-10)
-
-
 def test_mt_hartree_gaussian_near_continuum_qe_ws():
     sigma = 0.6
     L = 25.0
@@ -107,7 +67,7 @@ def test_mt_hartree_gaussian_near_continuum_qe_ws():
     rho /= rho.integral()
     e_ref = isolated_gaussian_hartree_self_energy(sigma)
     e_mt = Hartree(mt=MartynaTuckerman(g))(rho, calcType={"E"}).energy
-    assert_allclose(e_mt, e_ref, rtol=0.115, atol=5e-2)
+    assert_allclose(e_mt, e_ref, rtol=1e-4, atol=5e-2)
 
 
 def test_ws_dist_corner_orthogonal_equals_brute_cubic_small():

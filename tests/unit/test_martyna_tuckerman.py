@@ -94,11 +94,10 @@ def test_hartree_mt_pw_difference_matches_wg_contribution():
 
 
 def test_mt_hartree_gaussian_near_continuum_qe_ws():
-    """MT Coulomb Hartree should be broadly consistent with continuum for a diffuse Gaussian.
+    """MT Coulomb Hartree must reproduce the isolated Gaussian self-energy.
 
-    The isolated reference ``1/(2√π σ)`` is not exact MT + finite FFT; QE-style folding
-    (corner ``ws_dist`` vs center ``r_mic``) mainly fixes artefacts for modest cells.
-    For ``L = 25`` bohr, ``σ = 0.6`` bohr, ``96³`` grids the relative gap is ``~``10%.
+    For a normalized Gaussian ρ(r) with σ = 0.6 bohr in a 25-bohr box on a 96³ grid,
+    the MT Hartree energy should match E = 1/(2√π σ) to better than 1e-4 relative.
     """
 
     sigma = 0.6
@@ -110,7 +109,7 @@ def test_mt_hartree_gaussian_near_continuum_qe_ws():
     rho /= rho.integral()
     e_ref = isolated_gaussian_hartree_self_energy(sigma)
     e_mt = Hartree(mt=MartynaTuckerman(g))(rho, calcType={"E"}).energy
-    np.testing.assert_allclose(e_mt, e_ref, rtol=0.115, atol=5e-2)
+    np.testing.assert_allclose(e_mt, e_ref, rtol=1e-4)
 
 
 def test_ws_dist_corner_orthogonal_equals_brute_cubic_small():
