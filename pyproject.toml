@@ -6,7 +6,8 @@ build-backend = "setuptools.build_meta"
 # You should update the version here!
 # Typically, the version number should be greater than the latest release version, which can be found in the most recent
 # version tag. A trailing `dev0` should be included.
-fallback_version = "2.1.3dev0"
+fallback_version = "2.2.0dev0"
+version_file = "src/dftpy/version.py"
 
 [project]
 name = "dftpy"
