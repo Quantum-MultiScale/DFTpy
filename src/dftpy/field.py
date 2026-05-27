@@ -770,11 +770,54 @@ class ReciprocalField(BaseField):
         self.spl_coeffs = None
 
     def integral(self):
-        """ Returns the integral of self """
-        if self.rank == 1:
-            return self.mp.einsum("ijk->", self) * self.grid.dV * self.grid.nnrG / (2.0 * np.pi) ** 3
+        r"""Sum over all G-vectors divided by the real-space cell volume :math:`\Omega`.
+
+        .. math::
+
+            \texttt{integral()} = \frac{1}{\Omega}\sum_{\mathbf G}^{\text{all}} f(\mathbf G)
+
+        The prefactor ``grid.dV * grid.nnrG / (2*pi)**3`` simplifies to
+        :math:`1/\Omega` because :math:`\Omega_G = (2\pi)^3/\Omega` and
+        :math:`dV_G = \Omega_G / N_G`.
+
+        **Primary use case** (Parseval-like energy):
+        With DFTpy's FFT convention :math:`\tilde f = dV \cdot \mathrm{FFT}[f]`,
+        the real-space inner product satisfies
+
+        .. math::
+
+            dV \sum_{\mathbf r} f(\mathbf r)\,g(\mathbf r)
+            = \frac{1}{\Omega}\sum_{\mathbf G}
+              \tilde f^*(\mathbf G)\,\tilde g(\mathbf G)
+            = (\mathrm{conj}(\tilde f) \cdot \tilde g)\texttt{.integral()}
+
+        When the grid stores only the rFFT half-space (``grid.full = False``),
+        a multiplicity weight of 2 is applied to modes whose Hermitian partner
+        is not stored (all except :math:`G_z = 0` and, for even N, the Nyquist
+        plane :math:`G_z = N_z/2`).
+        """
+        inv_vol = 1.0 / self.grid.get_direct().volume
+        if self.grid.full:
+            if self.rank == 1:
+                return self.mp.einsum("ijk->", self) * inv_vol
+            else:
+                return self.mp.einsum("lijk->l", self) * inv_vol
         else:
-            return self.mp.einsum("lijk->l", self) * self.grid.dV * self.grid.nnrG / (2.0 * np.pi) ** 3
+            w = self._rfft_weight()
+            if self.rank == 1:
+                return self.mp.einsum("ijk->", self * w) * inv_vol
+            else:
+                return self.mp.einsum("lijk->l", self * w[np.newaxis]) * inv_vol
+
+    def _rfft_weight(self):
+        """Multiplicity weights for rFFT half-grid: 2 for interior, 1 for self-conjugate planes."""
+        nrR = self.grid.nrR
+        nz_stored = self.grid.nr[2]
+        w = np.full(self.grid.nr, 2.0, dtype=np.float64)
+        w[:, :, 0] = 1.0
+        if nrR[2] % 2 == 0 and nz_stored > 1:
+            w[:, :, nz_stored - 1] = 1.0
+        return w
 
     @timer('InvFFT')
     def ifft(self, check_real=False, force_real=False):

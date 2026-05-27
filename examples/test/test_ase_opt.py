@@ -10,7 +10,11 @@ class Test(unittest.TestCase):
     def test_opt(self):
         from ase.optimize import BFGS, LBFGS, FIRE
         from ase.optimize.sciopt import SciPyFminBFGS, SciPyFminCG
-        from ase.filters import StrainFilter, UnitCellFilter
+
+        try:
+            from ase.constraints import StrainFilter, UnitCellFilter
+        except ImportError:  # older ASE
+            from ase.filters import StrainFilter, UnitCellFilter
         from ase.io.trajectory import Trajectory
         from ase import units
         from ase.io import read, write

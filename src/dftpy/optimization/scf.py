@@ -108,7 +108,7 @@ class OESCF:
 
     def mix(self, **kwargs):
         r = self.rho - self.rho_prev
-        self.dp_norm = Hartree.compute(r, calcType=('E')).energy
+        self.dp_norm = Hartree().compute(r, calcType=('E')).energy
         if self.iter == 1 :
             self.dp_norm_prev = self.dp_norm
         else :

@@ -313,6 +313,7 @@ class DirectGrid(BaseGrid):
         super().__init__(lattice=lattice, nr=nr, origin=origin, full=full, direct=True, **kwargs)
         self._r = None
         self._rr = None
+        self._r_mic = None
         self._s = None
         self.RPgrid = uppergrid
         self._Rtable = None
@@ -360,6 +361,38 @@ class DirectGrid(BaseGrid):
         return self._rr
 
     @property
+    def r_mic(self):
+        r"""Minimum-image Euclidean lengths for MT-style radial kernels.
+
+        For each FFT node the fractional displacement from ``(½,½,½)``
+        crystal coordinates is folded into :math:`(-\\tfrac12, \\tfrac12)^3`;
+        Cartesian coordinates built with the same lattice convention as :attr:`r`,
+        followed by Euclidean norm (`|{\\bf r}|_{\\mathrm{MIC}}`).
+        """
+
+        if self._r_mic is None:
+            s = self.s
+            srel0 = s[0] - 0.5
+            srel1 = s[1] - 0.5
+            srel2 = s[2] - 0.5
+            srel0 = srel0 - np.floor(srel0 + 0.5)
+            srel1 = srel1 - np.floor(srel1 + 0.5)
+            srel2 = srel2 - np.floor(srel2 + 0.5)
+            r_mic_cart = np.einsum(
+                "j...,jk->k...",
+                np.stack([srel0, srel1, srel2], axis=0),
+                self.lattice,
+            )
+            self._r_mic = np.sqrt(np.sum(r_mic_cart * r_mic_cart, axis=0))
+        return self._r_mic
+
+    @property
+    def rmic(self):
+        """Synonym for :attr:`r_mic`; minimum-image Euclidean distance from lattice centers."""
+
+        return self.r_mic
+
+    @property
     def s(self):
         if self._s is None:
             self._calc_grid_crys_points()
@@ -380,6 +413,7 @@ class DirectGrid(BaseGrid):
             self._nrG = self.nr.copy()
             if not self._full:
                 self._nrG[-1] = self._nrG[-1] // 2 + 1
+            self._r_mic = None
 
     def get_reciprocal(self, scale=None, convention: str = "physics") -> 'ReciprocalGrid':
         r"""

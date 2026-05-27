@@ -6,6 +6,8 @@ from ase.symbols import symbols2numbers
 from ase.cell import Cell
 
 from dftpy.constants import Units
+from dftpy.grid import ReciprocalGrid
+from dftpy.field import ReciprocalField
 
 
 class Ions(Atoms):
@@ -41,6 +43,7 @@ class Ions(Atoms):
         "get_cell",
         "strf",
         "istrf",
+        "total_strf",
         "symbols_uniq",
         "nat",
         "zval",
@@ -75,6 +78,7 @@ class Ions(Atoms):
         "set_charges",
         "strf",
         "istrf",
+        "total_strf",
         "symbols_uniq",
         "nat",
         "zval",
@@ -268,14 +272,27 @@ class Ions(Atoms):
         a = np.exp(
             -1j * np.einsum("lijk,l->ijk", reciprocal_grid.g, self.positions[iatom])
         )
-        return a
+        return ReciprocalField(grid=reciprocal_grid, data=a)
 
     def istrf(self, reciprocal_grid, iatom):
         """Returns the Structure-Factor-like property associated to i-th ion."""
         a = np.exp(
             1j * np.einsum("lijk,l->ijk", reciprocal_grid.g, self.positions[iatom])
         )
-        return a
+        return ReciprocalField(grid=reciprocal_grid, data=a)
+
+    def total_strf(self, reciprocal_grid):
+        """Returns total ionic structure factor ``sum_I Z_I S_I(G)``"""
+
+        a = np.zeros(reciprocal_grid.nr, dtype=np.complex128)
+        out = ReciprocalField(grid=reciprocal_grid, data=a)
+
+        for i in range(self.nat):
+            z = self.charges[i]
+            if z == 0.0:
+                continue
+            out += z * self.strf(reciprocal_grid, i)
+        return out
 
     @property
     def symbols_uniq(self):

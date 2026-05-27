@@ -3,6 +3,7 @@ from dftpy.functional.total_functional import TotalFunctional
 from dftpy.functional.abstract_functional import AbstractFunctional
 from dftpy.functional.external_potential import ExternalPotential
 from dftpy.functional.hartree import Hartree
+from dftpy.functional.martyna_tuckerman import MartynaTuckerman
 from dftpy.functional.kedf import KEDF
 from dftpy.functional.nonadiabatic import Dynamic
 from dftpy.functional.pseudo import LocalPseudo

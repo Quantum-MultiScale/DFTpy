@@ -6,6 +6,7 @@ import scipy.special as sp
 from scipy.interpolate import splrep, splev
 import re
 
+from dftpy.constants import environ
 from dftpy.ewald import CBspline, ewald
 from dftpy.field import ReciprocalField, DirectField
 from dftpy.functional.abstract_functional import AbstractFunctional
@@ -77,7 +78,7 @@ class LocalPseudo(AbstractLocalPseudo):
     This is a template class and should never be touched.
     """
 
-    def __init__(self, grid=None, ions=None, PP_list=None, PME=True, readpp = None, comm = None, BsplineOrder = 10, **kwargs):
+    def __init__(self, grid=None, ions=None, PP_list=None, PME=True, readpp = None, comm = None, BsplineOrder = 10, mt=None, **kwargs):
 
         self.type = 'PSEUDO'
         self.name = 'PSEUDO'
@@ -98,8 +99,10 @@ class LocalPseudo(AbstractLocalPseudo):
 
         self.PME = PME
         self.BsplineOrder = BsplineOrder
-        # if not PME :
-            # sprint("Using N^2 method for strf!", comm=comm)
+        self._mt = mt
+        if not PME :
+            if environ['LOGLEVEL']<=2:
+                sprint("Using N^2 method for strf!", comm=comm)
         self.restart(grid, ions)
 
     @property
@@ -156,7 +159,14 @@ class LocalPseudo(AbstractLocalPseudo):
         without recomputing the local pp on the atoms.
         """
         if duplicate :
-            pseudo = self.__class__(grid = grid, ions = ions, readpp = self.readpp)
+            pseudo = self.__class__(
+                grid=grid,
+                ions=ions,
+                readpp=self.readpp,
+                PME=self.PME,
+                BsplineOrder=self.BsplineOrder,
+                mt=self._mt,
+            )
             return pseudo
 
         self._vlines = {}  # PP for each atomic species on 3D PW grid
@@ -187,6 +197,9 @@ class LocalPseudo(AbstractLocalPseudo):
         if not isinstance(value, (DirectGrid)):
             raise TypeError("Grid must be DirectGrid")
         self._grid = value
+        if self._mt is not None:
+            self._mt.grid = value
+        self._invalidate_ewald_cache()
 
     @property
     def ions(self):
@@ -203,6 +216,17 @@ class LocalPseudo(AbstractLocalPseudo):
         self._ions = value
         # update zval in ions
         self._ions.set_charges(self.zval)
+        self._invalidate_ewald_cache()
+
+    def _invalidate_ewald_cache(self) -> None:
+        """Drop cached Ewald energy/forces/stress after grid, ions, or MT screening change."""
+
+        ewald_obj = getattr(self, "ewald", None)
+        if ewald_obj is None:
+            return
+        for attr in ("_energy", "_forces", "_stress"):
+            if hasattr(ewald_obj, attr):
+                setattr(ewald_obj, attr, None)
 
     @property
     def Bspline(self):
@@ -210,22 +234,35 @@ class LocalPseudo(AbstractLocalPseudo):
             self._Bspline = CBspline(ions=self.ions, grid=self.grid, order=self.BsplineOrder)
         return self._Bspline
 
-    def get_ewald(self, PME = None):
-        if self.ewald is None :
-            if PME is None : PME = self.PME
-            self.ewald = ewald(ions=self.ions, grid = self.grid, PME=PME, Bspline = self.Bspline)
+    def get_ewald(self, PME=None):
+        if PME is None:
+            PME = self.PME
+        stale_mt = self.ewald is not None and getattr(self.ewald, "_mt", None) is not self._mt
+        if self.ewald is None or stale_mt:
+            self.ewald = ewald(
+                ions=self.ions,
+                grid=self.grid,
+                PME=PME,
+                Bspline=self.Bspline,
+                mt=self._mt,
+            )
         return self.ewald
+
+    def _accumulate_mt_local_correction(self, v_reciprocal):
+        """Adds MT local PP reciprocal correction (:class:`MartynaTuckerman`)."""
+
+        if self._mt is None:
+            return
+        corr = self._mt.local_pp_correction_reciprocal(self.ions)
+        v_reciprocal += corr
 
     def compute(self, density, calcType={"E", "V"}, **kwargs):
         if self._vreal is None:
             self.local_PP()
         pot = self._vreal
         if 'E' in calcType:
-            if density.rank > 1:
-                rho = np.sum(density, axis=0)
-            else:
-                rho = density
-            ene = np.einsum("ijk, ijk->", self._vreal, rho) * self.grid.dV
+            rho = self._force_density(density)
+            ene = np.einsum("ijk, ijk->", pot, rho) * self.grid.dV
         else:
             ene = 0.0
 
@@ -265,8 +302,10 @@ class LocalPseudo(AbstractLocalPseudo):
         self.local_PP()
         if self.PME:
             f = self._ForcePME(rho)
+            if self._mt is not None:
+                f = f + self._Force_reciprocal(rho, mt_only=True)
         else:
-            f = self._Force(rho)
+            f = self._Force_reciprocal(rho)
         return f
 
     def calc_force_cc(self, potential = None, rhod = None, ions = None):
@@ -431,6 +470,7 @@ class LocalPseudo(AbstractLocalPseudo):
                 if self.ions.symbols[i] == key:
                     strf = self.ions.strf(reciprocal_grid, i)
                     v += self.vlines[key] * strf
+        self._accumulate_mt_local_correction(v)
         self._v = ReciprocalField(reciprocal_grid, griddata_3d=v)
         return "PP successfully interpolated"
 
@@ -448,6 +488,7 @@ class LocalPseudo(AbstractLocalPseudo):
             Qarray = DirectField(grid=self.grid, griddata_3d=QA, rank=1)
             v = v + self.vlines[key] * Qarray.fft()
         v = v * self.Bspline.Barray * self.grid.nnrR / self.grid.volume
+        self._accumulate_mt_local_correction(v)
         self._v = v
         return "PP successfully interpolated"
 
@@ -502,23 +543,40 @@ class LocalPseudo(AbstractLocalPseudo):
         stress /= self.grid.volume
         return stress
 
-    def _Force(self, density):
+    def _force_density(self, density):
         if density.rank > 1:
-            rho = np.sum(density, axis=0)
-        else:
-            rho = density
+            return np.sum(density, axis=0)
+        return density
+
+    def _Force_reciprocal(self, density, *, mt_only=False):
+        r"""Hellmann–Feynman forces in reciprocal space.
+
+        ``F_Ia = -Re ∫ conj(ρ_G) ∂V/∂R_Ia`` with ``∂V/∂R = coef(G) (-i G_a) S_I(G)`` and
+        ``coef = v_loc``, ``v_loc - W Z_I``, or ``-W Z_I`` (``mt_only`` PME add-on).
+        """
+
+        rho = self._force_density(density)
         rhoG = rho.fft()
         reciprocal_grid = self.grid.get_reciprocal()
         g = reciprocal_grid.g
-        Forces = np.zeros((self.ions.nat, 3))
-        mask = reciprocal_grid.mask
+        wg = self._mt.wg if self._mt is not None else None
+        forces = np.zeros((self.ions.nat, 3))
         for i in range(self.ions.nat):
-            strf = self.ions.istrf(reciprocal_grid, i)
-            den = self.vlines[self.ions.symbols[i]][mask] * (rhoG[mask] * strf[mask]).imag
-            for j in range(3):
-                Forces[i, j] = np.einsum("i, i->", g[j][mask], den)
-        Forces *= 2.0 / self.grid.volume
-        return Forces
+            key = self.ions.symbols[i]
+            strf = self.ions.strf(reciprocal_grid, i)
+            if mt_only:
+                coef = -wg * self.ions.charges[i]
+            elif wg is not None:
+                coef = self.vlines[key] - wg * self.ions.charges[i]
+            else:
+                coef = self.vlines[key]
+            for a in range(3):
+                dV_G = ReciprocalField(
+                    reciprocal_grid,
+                    griddata_3d=np.asarray(coef * (-1j * g[a]) * strf, dtype=np.complex128),
+                )
+                forces[i, a] = -np.real((np.conj(rhoG) * dV_G).integral())
+        return forces
 
     def _ForcePME(self, density):
         if density.rank > 1:
@@ -568,6 +626,10 @@ class LocalPseudo(AbstractLocalPseudo):
                                                                                          l123A[0][mask], l123A[1][mask],
                                                                                          l123A[2][mask]][:, np.newaxis],
                                         axis=0)
+        if rho.mp.is_mpi:
+            from dftpy.functional.total_functional import _mpi_reduce_forces
+
+            Forces = _mpi_reduce_forces(rho.mp, Forces)
         return Forces
 
     def _StressPME(self, density, energy=None):

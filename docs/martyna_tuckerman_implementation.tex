@@ -1,0 +1,386 @@
+% DEPRECATED: see dftpy_fft_and_coulomb.tex (broader FFT + Hartree + PP + Ewald + G=0 + MT).
+% Martyna--Tuckerman in DFTpy: equations, QE mapping, and code-style notes
+% Compile: pdflatex martyna_tuckerman_implementation.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{geometry}
+\geometry{margin=1in}
+\title{Martyna--Tuckerman Coulomb screening in DFTpy:\\
+Equations (JCP {1999}), QE mapping, and implementation notes}
+\author{Auto-generated from source audit (repository snapshot)}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This note aligns the documented objects with Martyna \& Tuckerman,
+\emph{J.\ Chem.\ Phys.} \textbf{110}, 2810 (1999) (Secs.~II--III, Appendix~A--B):
+the Coulomb splitting, screening function $\hat f_{\mathrm{screen}}$, and finite
+$\mathbf G\to\mathbf 0$ limits after cancellation of Coulomb divergences. It maps the
+implementation to Quantum ESPRESSO \texttt{PW} names where analogous, highlighting
+\textbf{differences}: DFTpy does not apply PWscf's post-hoc Gaussian taper on $W'$ nor
+enforce $W(\mathbf 0)=0$ / $K(\mathbf 0)=0$ after building the screening.
+A brief read-only audit of coding patterns in the MT call chain is included for debugging
+when MT and non-MT branches disagree (energy, density, AIMD drift).
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Scope of the MT-related code path}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\noindent\textbf{Primary module:} \texttt{src/dftpy/functional/martyna\_tuckerman.py}
+
+\noindent\textbf{Consumers:}
+\begin{itemize}
+  \item \texttt{Hartree} (\texttt{src/dftpy/functional/hartree.py}) uses
+        $\texttt{mt.coulomb\_kernel}(G)$ instead of $4\pi/G^2$.
+  \item \texttt{LocalPseudo} (\texttt{src/dftpy/functional/pseudo/\_\_init\_\_.py})
+        adds $\Delta \tilde v_{\mathrm{loc}}(\mathbf G)$ and adjusts ionic HF forces
+        on the PME path.
+  \item \texttt{ewald} (\texttt{src/dftpy/ewald.py}) adds an MT \emph{ion--ion}
+        reciprocal contribution and its forces.
+  \item \texttt{ConfigParser} (\texttt{src/dftpy/interface.py}) constructs a single
+        \texttt{MartynaTuckerman(grid)} instance and passes it into Hartree and PSEUDO
+        (and into Ewald via \texttt{LocalPseudo.get\_ewald}).
+\end{itemize}
+
+\noindent\textbf{Important consistency requirement:} the same \texttt{MartynaTuckerman}
+instance (hence the same cached $W(\mathbf G)$) must be used for Hartree, local PP
+correction, and Ewald MT terms; otherwise energies and potentials are not from a
+single defined model.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Notation}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{itemize}
+  \item $\Omega$ --- cell volume; $\mathbf a_i$ --- direct lattice rows (DFTpy convention).
+  \item $\mathbf G$ --- reciprocal lattice vectors on the FFT mesh;
+        $G^2 = |\mathbf G|^2$ (stored as \texttt{ReciprocalGrid.gg}).
+  \item $\tilde\rho(\mathbf G)$ --- electronic density in reciprocal space.
+  \item $Z_I$, $\mathbf R_I$ --- ionic valence charges and positions;
+        $S_I(\mathbf G)=\exp(-i\mathbf G\cdot\mathbf R_I)$ structure factors.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Equations implemented (DFTpy)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Smooth Coulomb fragment in real space (QE \texttt{smooth\_coulomb\_r})}
+
+For a scalar distance $r>0$ and splitting parameter $\alpha>0$,
+\begin{equation}
+  f_\alpha(r) \;=\; \frac{\operatorname{erf}(\sqrt{\alpha}\,r)}{r},
+  \qquad
+  \lim_{r\to 0^+} f_\alpha(r) \;=\; \frac{2}{\sqrt{\pi}}\sqrt{\alpha}.
+\end{equation}
+DFTpy implements this in \texttt{smooth\_coulomb\_r} with a small cutoff $\varepsilon$
+masking $r\le\varepsilon$ to the limiting value.
+
+\subsection{Minimum-image distance from corner nodes (QE \texttt{ws\_dist})}
+
+DFTpy evaluates the smooth Coulomb fragment on Cartesian FFT nodes $\mathbf r$
+obtained from \texttt{DirectGrid.r} (origin at the \emph{corner} of the cell),
+then replaces $|\mathbf r|$ by the periodic shortest distance
+\begin{equation}
+  r_{\mathrm{ws}}(\mathbf r)
+  \;=\;
+  \min_{\mathbf T\in\mathcal{L}} \|\mathbf r + \mathbf T\|,
+\end{equation}
+where $\mathcal{L}$ is the Bravais lattice. For orthorhombic primitive cells,
+\texttt{\_ws\_dist\_corner\_orthogonal} applies fractional MIC folding
+$(f+\tfrac12)\bmod 1 - \tfrac12$ and maps back to Cartesian lengths (implementation uses
+corner-origin fractional coords \texttt{DirectGrid.s} rather than Cartesian $\mathbf r\cdot h^{-1}$).
+
+\paragraph{Relation to \texttt{DirectGrid.r\_mic}.}
+\texttt{r\_mic} folds fractional coordinates relative to $(\tfrac12,\tfrac12,\tfrac12)$
+(cell center), whereas QE's MT path documented here uses corner-origin $\mathbf r$
+with \texttt{ws\_dist}. They are \emph{not} interchangeable without a convention change.
+
+\subsection{Smooth Coulomb fragment in reciprocal space (QE \texttt{smooth\_coulomb\_g})}
+
+Let $\beta = 1/(2\alpha)$ (DFTpy sets \texttt{beta = 0.5/alpha}). For $G^2>0$,
+\begin{equation}
+  \tilde f_\alpha(\mathbf G)
+  \;=\;
+  \frac{4\pi}{G^2}\,
+  \exp\!\left(-\frac{G^2}{4\alpha}\right),
+\end{equation}
+and since DFTpy regularises the bare Coulomb pole as $4\pi/G^2\to 0$ at
+$\mathbf G=\mathbf 0$ (via \texttt{invgg[0]=0}), the consistent $G\to 0$ value of
+the \emph{difference} $\tilde f_\alpha - 4\pi/G^2$ is:
+\begin{equation}
+  \tilde f_\alpha(0)
+  \;=\;
+  \lim_{G\to 0}\left[\frac{4\pi\,e^{-G^2/(4\alpha)}}{G^2} - \frac{4\pi}{G^2}\right]
+  \;=\;
+  -\frac{\pi}{\alpha},
+\end{equation}
+matching the finite remainder in Appendix~B after singularity cancellation.
+
+\subsection{Construction of $W(\mathbf G)$ (Martyna \& Tuckerman 1999, Appendix~B; cf.\ QE \texttt{init\_wg\_corr})}
+
+Following the Coulomb decomposition in their Eq.~(B1),
+$1/r = f^{(\mathrm{long})}(r)+f^{(\mathrm{short})}(r)$ with
+$f^{(\mathrm{long})}(r)=\mathrm{erf}(\alpha_{\mathrm{conv}} r)/r$,
+they define screening through the difference between Fourier \emph{coefficients} of the long
+part \emph{differing} between the lattice sum and continuous transform (Secs.~II and Appendix~B),
+equivalently embodied by subtracting the analytic $\tilde f^{(\mathrm{long})}(\mathbf G)$ from the
+FFT of $f^{(\mathrm{long})}(\mathbf r)$ on the bounded domain.
+
+DFTpy builds an auxiliary real-space field ($f_\alpha$ as $\mathrm{erf}(\sqrt{\alpha}\, r)/r$, evaluated using the periodic minimum-image distance $r_{\mathrm{ws}}$)
+\begin{equation}
+  A(\mathbf r) \;=\; f_\alpha\!\bigl(r_{\mathrm{ws}}(\mathbf r)\bigr),
+\end{equation}
+whose discrete transform gives $\mathcal{R}[A(\mathbf G)]$ (stored as real after FFT).
+It subtracts $\tilde f_\alpha(\mathbf G)$ --- the reciprocal-space long-range Coulomb fragment, their Eq.~(B2):
+\begin{equation}
+  \label{eq:Wprimer}
+  W(\mathbf G) \;=\; \Re\,A(\mathbf G) \;-\; \tilde f_\alpha(\mathbf G).
+\end{equation}
+\textbf{DFTpy follows the 1999 paper:} no extra taper beyond Eq.~\eqref{eq:Wprimer}, and $W(\mathbf 0)$
+is the finite value that emerges from the FFT difference after singularity cancellation
+(Appendix~B, their Eq.~B3).  Neither $W(\mathbf 0)$ nor $K(\mathbf 0)=W(\mathbf 0)$ is
+forced to zero.
+
+\subsection{Coulomb kernel for Hartree and $\mathbf G=\mathbf 0$}
+
+The Hartree reciprocal multiplier is assembled as ($\Omega$ conventions as in periodic Poisson solves)
+\begin{equation}
+  \label{eq:Kdef}
+  K(\mathbf G) \;=\; \frac{4\pi}{|\mathbf G|^2} + W(\mathbf G).
+\end{equation}
+\textbf{Bare pole on the FFT mesh.}
+\texttt{ReciprocalGrid.invgg} assigns $[\texttt{invgg}]_{\mathbf G=\mathbf 0}=0$ so the Coulomb divergence is not injected as infinity at the dc mode.
+
+\textbf{Paper-consistent finite mode.}
+Neither $W(\mathbf 0)$ nor $K(\mathbf 0)$ is arbitrarily forced to zero: with the pole absorbed as above,
+the implementation uses $K(\mathbf 0)=W(\mathbf 0)$.
+This differs from enforcing a ``gauge'' $K(\mathbf 0)=0$ (neutral-jellium style) commonly used elsewhere;
+see Appendix~A Eq.~(A4) for how $g\to 0$ ties to neutrality and backgrounds.
+
+\subsection{Tuning $\alpha$ (\texttt{optimal\_alpha\_beta})}
+
+When the user does not fix $\alpha$, \texttt{optimal\_alpha\_beta(gg\_max, lattice)}
+selects $\alpha$ as the geometric mean of a lower and upper bound:
+\begin{itemize}
+  \item \textbf{Lower bound (G-space):} $\exp(-G^2_{\max}/(4\alpha))$ must be negligible
+        $\Rightarrow \alpha > G^2_{\max}/\bigl(4\,[\mathrm{erfc}^{-1}(\mathrm{tol})]^2\bigr)$.
+  \item \textbf{Upper bound (real-space):} $\mathrm{erfc}(\sqrt{\alpha}\,R_c)$ must be
+        negligible with $R_c = L_{\min}/2$
+        $\Rightarrow \alpha < [\mathrm{erfc}^{-1}(\mathrm{tol})]^2/R_c^2$.
+\end{itemize}
+For typical OFDFT grids the G-space condition is easily satisfied; the real-space
+condition prevents $\alpha$ from being unnecessarily large (which would make
+$\mathrm{erf}(\sqrt\alpha\,r)/r$ reach its $1/r$ asymptote too early, creating a
+poorly convergent Fourier series near the WS boundary).
+
+\subsection{Hartree energy and potential}
+
+Electronic Hartree uses
+\begin{equation}
+  \tilde V_H(\mathbf G) = K(\mathbf G)\,\tilde\rho(\mathbf G),
+  \qquad
+  E_H = \frac{1}{2}\int V_H(\mathbf r)\,\rho(\mathbf r)\,d^3r
+      = \frac{\Omega}{2}\sum_{\mathbf G} \tilde V_H(\mathbf G)\,\tilde\rho(-\mathbf G),
+\end{equation}
+as implemented in \texttt{Hartree.compute}.
+
+\subsection{MT additive correction to the local pseudopotential (reciprocal)}
+
+DFTpy adds to the reciprocal local PP potential
+\begin{equation}
+  \Delta \tilde v_{\mathrm{loc}}(\mathbf G)
+  \;=\;
+  -\frac{1}{\Omega}\,W(\mathbf G)\,
+  \sum_I Z_I\,S_I(\mathbf G),
+\end{equation}
+implemented in \texttt{MartynaTuckerman.local\_pp\_correction\_reciprocal} and
+accumulated onto \texttt{v} before IFFT in \texttt{LocalPseudo.\_PP\_Reciprocal} and
+\texttt{\_PP\_Reciprocal\_PME}.
+
+\subsection{MT ion--ion reciprocal energy (added inside Ewald)}
+
+With $S^{\mathrm{tot}}(\mathbf G)=\sum_I Z_I S_I(\mathbf G)$ (dimensionless, DFTpy
+\texttt{total\_strf} convention), the MT ion--ion correction is:
+\begin{equation}
+  E_{\mathrm{II,MT}}
+  \;=\;
+  \frac{1}{2\Omega}\sum_{\mathbf G}
+  W(\mathbf G)\,\bigl|S^{\mathrm{tot}}(\mathbf G)\bigr|^2.
+\end{equation}
+The implementation in \texttt{ion\_ewald\_energy} uses the rFFT \texttt{mask} (which
+provides the independent half of $G$-vectors so
+$\sum_{\mathrm{mask},G\ne 0}=\frac{1}{2}\sum_{\mathrm{all},G\ne 0}$).
+The $\mathbf G=\mathbf 0$ mode is \emph{self-conjugate} (no partner excluded by the mask)
+and must receive an explicit weight of $\frac{1}{2}$:
+\begin{equation}
+  E_{\mathrm{II,MT}} = \frac{1}{\Omega}\sum_{\mathbf G\in\mathrm{mask}}
+  W(\mathbf G)\,|S^{\mathrm{tot}}|^2
+  \;-\;
+  \frac{1}{2\Omega}\,W(\mathbf 0)\,|S^{\mathrm{tot}}(\mathbf 0)|^2.
+\end{equation}
+
+\subsection{Ionic forces from $E_{\mathrm{II,MT}}$}
+
+The force on ion $I$ arises from the derivative of $|S^{\mathrm{tot}}|^2$:
+\begin{equation}
+  F_{I,a} = -\frac{\partial E_{\mathrm{II,MT}}}{\partial R_{I,a}}
+  = -\frac{2}{\Omega}\sum_{\mathbf G\in\mathrm{mask}} W(\mathbf G)\,
+    \mathrm{Re}\!\left[S^{\mathrm{tot}*}(\mathbf G)\,(-iZ_I G_a)\,S_I(\mathbf G)\right].
+\end{equation}
+The factor of 2 comes from $\partial|S|^2/\partial R = 2\,\mathrm{Re}[S^*\,\partial S/\partial R]$,
+and combined with the mask convention (independent half-sum), no additional $\frac{1}{2}$ is needed.
+Implemented in \texttt{ion\_ewald\_forces}.
+
+\subsection{Hellmann--Feynman contribution from $\Delta v_{\mathrm{loc}}$ (PME path)}
+
+When PME is enabled, the B-spline spreading path differentiates only the
+$v_{\mathrm{loc}}\times\text{(charge spreading)}$ part; DFTpy adds a separate term
+\texttt{\_mt\_local\_hf\_forces} proportional to $-(W/\Omega)Z_I$ contracted with
+$\partial S_I/\partial \mathbf R_I$ and the fixed density $\rho$, matching the
+non-PME folding of MT into the per-ion coefficient in \texttt{\_Force}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Comparison with Quantum ESPRESSO (QE)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{longtable}{@{}p{0.34\textwidth}p{0.62\textwidth}@{}}
+\toprule
+\textbf{DFTpy object / step} & \textbf{QE analogue (typical locations)} \\
+\midrule
+\endhead
+\texttt{ws\_dist\_corner}, \texttt{\_ws\_dist\_corner\_orthogonal}
+  & \texttt{ws\_dist} in \texttt{Modules/ws\_base.f90}; MT uses periodic shortest distance. \\
+\texttt{smooth\_coulomb\_r}, \texttt{smooth\_coulomb\_g}
+  & \texttt{smooth\_coulomb\_r}, \texttt{smooth\_coulomb\_g} in
+    \texttt{PW/src/martyna\_tuckerman.f90}. \\
+\texttt{\_build\_wg\_cache} (FFT of $A(\mathbf r)$, subtract $\tilde f_\alpha$, no QE taper)
+  & \texttt{init\_wg\_corr} (\texttt{martyna\_tuckerman.f90}) may taper $W'$ and enforce
+    $\Gamma$-point constraints differing from Appendix~B. \\
+\texttt{coulomb\_kernel} $K=4\pi/G^2+W$, $K(\mathbf 0)=W(\mathbf 0)$ with bare pole via \texttt{invgg}[0]$=0$
+  & PWscf kernels may impose $K(\mathbf 0)=\mathbf 0$ or auxiliary scalings after MT. \\
+\texttt{local\_pp\_correction\_reciprocal}
+  & MT correction to local ionic potential assembled in reciprocal space in PWscf
+    (same $W$). \\
+\texttt{ion\_ewald\_energy}, \texttt{ion\_ewald\_forces}
+  & MT additions to ion--ion energy/forces (reciprocal $W$ term); in DFTpy these are
+    routed through \texttt{ewald} rather than a separate PW driver subroutine. \\
+\bottomrule
+\end{longtable}
+
+\paragraph{Known DFTpy limitations vs a full PWscf stack.}
+\begin{itemize}
+  \item \textbf{Numerical match to QE:} The 1999 paper is the specification here; PWscf-specific
+        multipliers ($\Gamma$ conventions, Gaussian taper after $W'$, enforced $W(0)=0$) can shift
+        $W$, $K$, and energies relative to DFTpy even when both codes implement Coulomb screening.
+  \item \textbf{Lattice symmetry:} DFTpy \texttt{MartynaTuckerman} supports general
+        triclinic cells (via Babai CVP for WS distances); orthorhombic cells use a fast path.
+  \item \textbf{Stress:} \texttt{Hartree.stress} explicitly warns that MT screening is
+        \emph{not} included in the reported Hartree stress tensor. \texttt{ewald.stress}
+        does not add an MT stress term (only energy/forces add MT in the audited code).
+  \item \textbf{OFDFT-specific coupling:} changing $K(\mathbf G)$ modifies the Hartree
+        potential entering the entire KEDF/XC/PP self-consistent loop; large energy and
+        kinetic-energy shifts with MT toggled can therefore reflect \emph{different
+        converged $\rho$}, not only a shift in a single energy functional.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Code-style audit (read-only): casts, arrays, and Field usage}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+This section lists patterns to revisit when you have time. No code changes were made
+for this audit.
+
+\subsection{\texttt{martyna\_tuckerman.py}}
+
+\begin{itemize}
+  \item \textbf{\texttt{float(...)} casts:} return values of
+        \texttt{optimal\_alpha\_beta}, user $\alpha$, \texttt{gg\_max}, and
+        \texttt{ion\_ewald\_energy} use explicit \texttt{float(...)}. These are mostly
+        for Python scalar typing / MPI reductions; consider whether any should remain
+        \texttt{numpy} scalars for dtype consistency.
+  \item \textbf{\texttt{np.asarray(..., dtype=np.float64)}:} lattice and distance arrays
+        are forced to C-contiguous float64 (also \texttt{np.ascontiguousarray} in
+        downstream consumers). This is defensive but duplicates DFTpy grid dtypes.
+  \item \textbf{\texttt{DirectField} inside \texttt{\_build\_wg\_cache}:} a \texttt{DirectField}
+        is constructed solely to call \texttt{.fft()} on the smooth Coulomb auxiliary.
+        Alternative: use the grid's FFT helpers on bare \texttt{ndarray} if the project
+        prefers fewer Field allocations in hot setup paths.
+  \item \textbf{\texttt{np.real(aux\_g)}:} taking the real part assumes the imaginary part
+        is numerical noise only; worth verifying against QE's complex handling.
+  \item \textbf{\texttt{assert} in \texttt{ws\_dist\_corner}:} shape assertion is not
+        guarded by user-facing errors (differs from \texttt{ValueError} style elsewhere).
+\end{itemize}
+
+\subsection{\texttt{hartree.py}}
+
+\begin{itemize}
+  \item MT branch swaps in \texttt{kern = mt.coulomb\_kernel(...)}; non-MT uses
+        \texttt{invgg}. No extra casts here; behaviour is minimal and clear.
+\end{itemize}
+
+\subsection{\texttt{ewald.py} (MT hooks)}
+
+\begin{itemize}
+  \item \texttt{float(self.\_mt.ion\_ewald\_energy(...))} wraps the MT ion--ion energy
+        before accumulation. Check whether this should participate in MPI reduction
+        patterns identical to other Ewald components.
+  \item MT forces are added after reciprocal/real Ewald force assembly; MT stress is
+        \emph{not} added in \texttt{stress} (potential inconsistency if stresses are used).
+\end{itemize}
+
+\subsection{\texttt{pseudo/\_\_init\_\_.py} (MT-related)}
+
+\begin{itemize}
+  \item \textbf{\texttt{\_PP\_Reciprocal} vs \texttt{\_PP\_Reciprocal\_PME}:} non-PME wraps
+        accumulated \texttt{v} in \texttt{ReciprocalField}; PME path assigns
+        \texttt{self.\_v = v} as raw \texttt{ndarray} after B-spline factors. Worth
+        checking type invariants downstream (\texttt{ifft}, stress, forces).
+  \item \textbf{\texttt{\_mt\_local\_hf\_forces} and \texttt{\_Force}:} each ionic
+        derivative allocates new \texttt{ReciprocalField} wrappers around
+        \texttt{np.asarray(self.ions.strf(...), dtype=np.complex128)} and again for
+        \texttt{dV\_G}. This is readable but allocates heavily inside nested loops
+        (\texttt{nat}$\times 3$ PME HF path; similar for non-PME \texttt{\_Force}).
+  \item \textbf{\texttt{np.ascontiguousarray(self.\_mt.wg, dtype=np.float64)}:} repeated
+        contiguity/dtype enforcement when building coefficients.
+  \item \textbf{Mixing Field arithmetic vs bare arrays:} \texttt{coef\_mt * (-1j * g[a]) * strf}
+        may rely on \texttt{ReciprocalField} broadcasting rules---worth unit-testing for
+        complex dtype and mask behaviour on rFFT grids.
+\end{itemize}
+
+\subsection{\texttt{interface.py} (construction)}
+
+\begin{itemize}
+  \item \texttt{alpha\_mt = float(alpha\_mt)} when user supplies $\alpha$ in config.
+  \item When reusing a restarted \texttt{LocalPseudo}, the code assigns
+        \texttt{PSEUDO.\_mt = mt} explicitly; verify this never desynchronises Hartree's
+        \texttt{mt} reference from the same object.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Suggested debugging checklist (no code performed here)}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{enumerate}
+  \item Plot $W(\mathbf G)$ shells: magnitude vs $|\mathbf G|$, check decay; verify finite $W(\mathbf 0)$
+        (\emph{need not} vanish vs.\ PWscf).
+  \item Compare $K(\mathbf G)=4\pi/G^2+W$ (with $\texttt{invgg}[0,0,0]=0$, $K(0)=W(0)$) to $4\pi/G^2$ at large $|\mathbf G|$;
+        $|W|$ should be small asymptotically when the screening saturates its role.
+  \item Compare $\Delta \tilde v_{\mathrm{loc}}(\mathbf G)$ to $-(W/\Omega)\sum Z S$ by
+        direct construction in a notebook.
+  \item Freeze $\rho$ and scan MT vs non-MT \emph{component} energies (Hartree, II,
+        local PP) at the \emph{same} $\rho$ to separate ``different $\rho$'' from
+        ``inconsistent energy model''.
+  \item FD test: total OFDFT energy vs forces at fixed $\rho$ (already in your debug
+        scripts) plus optional re-optimised $\rho$ FD at large box.
+\end{enumerate}
+
+\end{document}

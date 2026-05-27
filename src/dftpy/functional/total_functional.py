@@ -2,6 +2,37 @@ import numpy as np
 from dftpy.functional.abstract_functional import AbstractFunctional
 from dftpy.functional.functional_output import FunctionalOutput
 
+
+def _mpi_reduce_energy_scalar(mp, energy) -> float:
+    """Sum MPI-local energy contributions; leave replicated global scalars unchanged."""
+
+    e = float(np.asarray(energy, dtype=np.float64).reshape(-1)[0])
+    if not mp.is_mpi:
+        return e
+    mn = float(mp.comm.allreduce(e, op=mp.MPI.MIN))
+    mx = float(mp.comm.allreduce(e, op=mp.MPI.MAX))
+    if abs(mx - mn) <= 1e-12 * max(1.0, abs(mx)):
+        return e
+    return float(mp.comm.allreduce(e, op=mp.MPI.SUM))
+
+
+def _mpi_reduce_forces(mp, forces: np.ndarray) -> np.ndarray:
+    """Combine per-rank force arrays: sum decomposed pieces, keep replicated globals once."""
+
+    f = np.asarray(forces, dtype=np.float64)
+    if not mp.is_mpi:
+        return f.copy()
+    total = np.zeros_like(f)
+    mp.comm.Allreduce(f, total, op=mp.MPI.SUM)
+    mn = np.zeros_like(f)
+    mx = np.zeros_like(f)
+    mp.comm.Allreduce(f, mn, op=mp.MPI.MIN)
+    mp.comm.Allreduce(f, mx, op=mp.MPI.MAX)
+    atol = 1e-12 * np.maximum(1.0, np.abs(mx))
+    replicated = np.abs(mx - mn) <= atol
+    return np.where(replicated, mx, total)
+
+
 class TotalFunctional(AbstractFunctional):
     """
      Object handling energy evaluation for the
@@ -129,19 +160,33 @@ class TotalFunctional(AbstractFunctional):
                     energy_potential["TOTAL"] += results
             else :
                 results = func(rho, calcType=calcType, **kwargs)
+                energy_potential[func.type] = results
                 energy_potential["TOTAL"] += results
         #
         if self.ewald :
             results = FunctionalOutput(name="II", energy=self.ewald.energy)
-            if split : energy_potential["II"] = results
+            energy_potential["II"] = results
             energy_potential["TOTAL"] += results
         #
         if 'E' in calcType:
-            keys, ep = zip(*energy_potential.items())
-            values = [item.energy for item in ep]
-            values = rho.mp.vsum(values)
-            for key, v in zip(keys, values):
-                energy_potential[key].energy = v
+            for key, item in energy_potential.items():
+                if key == "TOTAL":
+                    continue
+                item.energy = _mpi_reduce_energy_scalar(rho.mp, item.energy)
+            # Non-split runs accumulate KE/XC/Hartree/PP only on TOTAL; II may be separate.
+            functional_keys = [
+                k for k in energy_potential if k not in ("TOTAL", "II")
+            ]
+            if functional_keys:
+                energy_potential["TOTAL"].energy = sum(
+                    energy_potential[k].energy
+                    for k in energy_potential
+                    if k != "TOTAL"
+                )
+            else:
+                energy_potential["TOTAL"].energy = _mpi_reduce_energy_scalar(
+                    rho.mp, energy_potential["TOTAL"].energy
+                )
         if not split : energy_potential = energy_potential["TOTAL"]
         return energy_potential
 
@@ -167,9 +212,9 @@ class TotalFunctional(AbstractFunctional):
         #
         if split :
             for key, f in forces.items():
-                forces[key] = rho.mp.vsum(f)
+                forces[key] = _mpi_reduce_forces(rho.mp, f)
         else :
-            forces["TOTAL"] = rho.mp.vsum(forces["TOTAL"])
+            forces["TOTAL"] = _mpi_reduce_forces(rho.mp, forces["TOTAL"])
         if not split : forces = forces["TOTAL"]
         return forces
 

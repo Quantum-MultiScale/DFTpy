@@ -1,5 +1,6 @@
 # Hartree functional
 
+import warnings
 import numpy as np
 import copy
 
@@ -15,13 +16,13 @@ class Hartree(AbstractFunctional):
         self.type = 'HARTREE'
         self.name = 'HARTREE'
         self.options = kwargs
+        self.mt = kwargs.get("mt", None)
 
     def __repr__(self):
         return 'HARTREE'
 
-    @classmethod
     @timer()
-    def compute(cls, density, calcType={"E", "V"}, **kwargs):
+    def compute(self, density, calcType={"E", "V"}, **kwargs):
         invgg = density.grid.get_reciprocal().invgg
         if density.rank > 1:
             rho = np.sum(density, axis=0)
@@ -32,7 +33,11 @@ class Hartree(AbstractFunctional):
         else:
             force_real = False
         rho_of_g = rho.fft()
-        v_h = rho_of_g * invgg * 4 * np.pi
+        if self.mt is None:
+            v_h = rho_of_g * invgg * 4 * np.pi
+        else:
+            kern = self.mt.coulomb_kernel(density.grid.get_reciprocal())
+            v_h = rho_of_g * kern
         v_h_of_r = v_h.ifft(force_real=force_real)
         if 'E' in calcType:
             e_h = np.einsum("ijk, ijk->", v_h_of_r, rho,optimize=True) * density.grid.dV / 2.0
@@ -41,7 +46,8 @@ class Hartree(AbstractFunctional):
         if density.rank > 1:
             v_h_of_r = v_h_of_r.tile((density.rank, 1, 1, 1))
         functional=FunctionalOutput(name="Hartree", potential=v_h_of_r, energy=e_h)
-        if 'E' in calcType : cls._energy = functional.energy
+        if 'E' in calcType:
+            self._energy = functional.energy
         return functional
 
     @property
@@ -51,17 +57,11 @@ class Hartree(AbstractFunctional):
     def stress(self, density, **kwargs):
         options = copy.deepcopy(self.options)
         options.update(kwargs)
+        if self.mt is not None:
+            raise Exception("MT not compatible with a stress calculation")
         energy = self.energy
         stress=HartreeFunctionalStress(density, energy=energy)
         return stress
-
-
-#def HartreePotentialReciprocalSpace(density):
-#    invgg = density.grid.get_reciprocal().invgg
-#    rho_of_g = density.fft()
-#    v_h = rho_of_g.copy()
-#    v_h = rho_of_g * invgg * 4 * np.pi
-#    return v_h
 
 
 @timer()

@@ -71,6 +71,24 @@
       "default": true
     }
   },
+  "MARTYNA_TUCKERMAN": {
+    "comment": {
+      "type": "str",
+      "default": "Martyna–Tuckerman electrostatic screening (JCP 110, 2810) — cluster-like Coulomb corrections on a periodic FFT grid."
+    },
+    "enable": {
+      "comment": "When true, use one shared MartynaTuckerman kernel in Hartree, local pseudopotential (including PME), and ion–ion Ewald.",
+      "options": "True, False",
+      "type": "bool",
+      "default": false
+    },
+    "alpha": {
+      "comment": "Convergence parameter in the Coulomb splitting erf(alpha**0.5 * r_mic) / r_mic; omit or leave empty for automatic tuning.",
+      "options": "",
+      "type": "float",
+      "default": null
+    }
+  },
   "PP": {
      "comment": "Pseudopotential files for each atomic species",
      "type": "cdict",
