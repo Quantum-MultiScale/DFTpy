@@ -355,7 +355,6 @@ def _build_wg_cache(mt: "MartynaTuckerman") -> None:
     aux_g = aux_r.fft().real
 
     wg = aux_g - smooth_coulomb_g(gg, mt._alpha, mt._beta)
-    sprint("wg", wg[0, 0, 0])
     mt._wg = ReciprocalField(grid=reciprocal, data=wg)
 
 
