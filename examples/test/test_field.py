@@ -132,9 +132,10 @@ class TestField(unittest.TestCase):
         
         # Gradient, Hessian, Divergence, Laplacian type and value test
         #
-        # 0. Generate grid for the test
+        # 0. Generate grid for the test (coarse enough for CI; was 19× base → 209³)
         A, B, C = 11, 11, 11
-        nr = np.array([A*19, B*19, C*19])
+        gaussian_mult = 7
+        nr = np.array([A * gaussian_mult, B * gaussian_mult, C * gaussian_mult])
         grid = make_orthorombic_cell(A=A,B=B,C=C, CellClass=DirectGrid,\
                                                  nr=nr)
         DataGaussian = self.Gaussian_3d(grid_coor=grid.r,sigma=0.7) # generate 3D Gaussian Grid

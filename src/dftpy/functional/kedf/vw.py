@@ -89,9 +89,7 @@ def vonWeizsackerEnergy(rho, potential=None, sigma=None, **kwargs):
         edens = vonWeizsackerPotential(rho, sigma=sigma, **kwargs)
     else:
         edens = potential
-    # ene = np.einsum("ijk, ijk->", rho, edens) * rho.grid.dV
-    ene = np.einsum("i, i->", rho[rho > 0], edens[rho > 0]) * rho.grid.dV
-    return ene
+    return (rho * edens).integral()
 
 
 def vonWeizsackerStress(rho, y=1.0, energy=None, **kwargs):

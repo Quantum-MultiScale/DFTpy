@@ -105,3 +105,6 @@ addopts = [
 	"-ra"
 ]
 testpaths = "tests"
+markers = [
+	"mpi: tests that require mpirun with 2+ MPI ranks",
+]

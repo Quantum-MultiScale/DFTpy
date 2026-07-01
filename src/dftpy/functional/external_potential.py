@@ -28,7 +28,7 @@ class ExternalPotential(AbstractFunctional):
     def compute(self, rho, calcType={"E", "V"}, **kwargs):
         pot = self.v
         if 'E' in calcType:
-            ene = np.einsum("ijk, ijk->", self.v, rho) * self.v.grid.dV
+            ene = (self.v * rho).integral()
         else:
             ene = 0
         return FunctionalOutput(name="ext", energy=ene, potential=pot)

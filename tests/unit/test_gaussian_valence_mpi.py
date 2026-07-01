@@ -19,9 +19,92 @@ from dftpy.functional import Functional, TotalFunctional
 from dftpy.functional.martyna_tuckerman import MartynaTuckerman
 from dftpy.functional.pseudo import LocalPseudo
 from dftpy.grid import DirectGrid
+from dftpy.ions import Ions
 from dftpy.mpi import MP
 
 DATA = Path(__file__).resolve().parents[2] / "examples" / "DATA"
+
+# Small Mg dimer in the Mg8 box: 6 FD energies vs 24 for the full cluster.
+GRID_NR = (12, 12, 12)
+FD_ATOL = 5e-5
+FD_EPS = 3.0e-4
+GAUSSIAN_SIGMA = 1.35
+
+
+def _mg_dimer_ions(poscar: Path) -> Ions:
+    ref = read_POSCAR(poscar, names=["Mg"])
+    ions = Ions(
+        symbols=["Mg", "Mg"],
+        positions=ref.get_positions()[:2],
+        cell=ref.cell,
+    )
+    ions.set_charges([2.0, 2.0])
+    return ions
+
+
+def _build_evaluator(
+    ions: Ions,
+    grid: DirectGrid,
+    pp_file: Path,
+    mt: MartynaTuckerman,
+) -> TotalFunctional:
+    pseudo = LocalPseudo(
+        grid=grid, ions=ions, PP_list={"Mg": pp_file}, PME=True, mt=mt
+    )
+    return TotalFunctional(
+        KE=Functional(type="KEDF", name="TFvW", y=1.0),
+        XC=Functional(type="XC", name="LDA"),
+        HARTREE=Functional(type="HARTREE", mt=mt),
+        PSEUDO=pseudo,
+    )
+
+
+def _energy_adiabatic(
+    evaluator: TotalFunctional,
+    grid: DirectGrid,
+    ions: Ions,
+    *,
+    sigma: float,
+    ne,
+) -> float:
+    evaluator.PSEUDO.restart(ions=ions, grid=grid)
+    rho = gaussian_valence_density(
+        grid, ions, sigma=sigma, total_valence_electrons=ne
+    )
+    return evaluator.Energy(rho)
+
+
+def _finite_difference_forces(
+    evaluator: TotalFunctional,
+    grid: DirectGrid,
+    ions: Ions,
+    *,
+    sigma: float,
+    ne,
+    eps: float,
+) -> np.ndarray:
+    nat = ions.nat
+    f_fd = np.zeros((nat, 3), dtype=np.float64)
+    pos0 = ions.get_positions().copy()
+    for ia in range(nat):
+        for j in range(3):
+            pos = pos0.copy()
+            pos[ia, j] += eps
+            ip = ions.copy()
+            ip.set_positions(pos)
+            e_p = _energy_adiabatic(
+                evaluator, grid, ip, sigma=sigma, ne=ne
+            )
+
+            pos = pos0.copy()
+            pos[ia, j] -= eps
+            im = ions.copy()
+            im.set_positions(pos)
+            e_m = _energy_adiabatic(
+                evaluator, grid, im, sigma=sigma, ne=ne
+            )
+            f_fd[ia, j] = -(e_p - e_m) / (2.0 * eps)
+    return f_fd
 
 
 @pytest.mark.mpi
@@ -37,63 +120,30 @@ def test_gaussian_valence_hf_plus_center_forces_mpi():
     if not poscar.is_file() or not pp_file.is_file():
         pytest.skip("missing Mg8 or mg.lda.recpot in examples/DATA")
 
-    ions = read_POSCAR(poscar, names=["Mg"])
-    grid = DirectGrid(lattice=ions.cell, nr=[18, 18, 16], mp=mp)
+    ions = _mg_dimer_ions(poscar)
+    grid = DirectGrid(lattice=ions.cell, nr=list(GRID_NR), mp=mp)
     mt = MartynaTuckerman(grid)
-    pseudo = LocalPseudo(
-        grid=grid, ions=ions, PP_list={"Mg": pp_file}, PME=True, mt=mt
-    )
-    evaluator = TotalFunctional(
-        KE=Functional(type="KEDF", name="LKT"),
-        XC=Functional(type="XC", name="LDA"),
-        HARTREE=Functional(type="HARTREE", mt=mt),
-        PSEUDO=pseudo,
-    )
-    ne = float(pseudo.ions.get_ncharges())
-    sigma = 1.35
-    eps = 3.0e-4
+    evaluator = _build_evaluator(ions, grid, pp_file, mt)
+    ne = evaluator.PSEUDO.ions.get_ncharges()
 
-    rho = gaussian_valence_density(grid, ions, sigma=sigma, total_valence_electrons=ne)
+    rho = gaussian_valence_density(
+        grid, ions, sigma=GAUSSIAN_SIGMA, total_valence_electrons=ne
+    )
     pot = evaluator.get_energy_potential(rho, calcType={"V"}).potential
     f_hf = np.asarray(evaluator.get_forces(rho, ions=ions), dtype=np.float64)
-    f_ctr = gaussian_valence_center_forces(grid, ions, sigma, pot, ne)
+    f_ctr = gaussian_valence_center_forces(
+        grid, ions, GAUSSIAN_SIGMA, pot, ne
+    )
     f_tot = f_hf + f_ctr
-
-    pos0 = ions.get_positions().copy()
-    f_fd = np.zeros((ions.nat, 3), dtype=np.float64)
-    for ia in range(ions.nat):
-        for j in range(3):
-            pos = pos0.copy()
-            pos[ia, j] += eps
-            ip = ions.copy()
-            ip.set_positions(pos)
-            rho_p = gaussian_valence_density(
-                grid, ip, sigma=sigma, total_valence_electrons=ne
-            )
-            e_p = _evaluator_at_ions(ip, grid, pp_file, mt).Energy(rho_p)
-
-            pos = pos0.copy()
-            pos[ia, j] -= eps
-            im = ions.copy()
-            im.set_positions(pos)
-            rho_m = gaussian_valence_density(
-                grid, im, sigma=sigma, total_valence_electrons=ne
-            )
-            e_m = _evaluator_at_ions(im, grid, pp_file, mt).Energy(rho_m)
-            f_fd[ia, j] = -(e_p - e_m) / (2.0 * eps)
+    f_fd = _finite_difference_forces(
+        evaluator,
+        grid,
+        ions,
+        sigma=GAUSSIAN_SIGMA,
+        ne=ne,
+        eps=FD_EPS,
+    )
 
     if mp.is_root:
-        assert_allclose(f_tot, f_fd, atol=5e-5, rtol=0.0)
+        assert_allclose(f_tot, f_fd, atol=FD_ATOL, rtol=0.0)
     mp.comm.Barrier()
-
-
-def _evaluator_at_ions(ions, grid, pp_file, mt):
-    pseudo = LocalPseudo(
-        grid=grid, ions=ions, PP_list={"Mg": pp_file}, PME=True, mt=mt
-    )
-    return TotalFunctional(
-        KE=Functional(type="KEDF", name="LKT"),
-        XC=Functional(type="XC", name="LDA"),
-        HARTREE=Functional(type="HARTREE", mt=mt),
-        PSEUDO=pseudo,
-    )

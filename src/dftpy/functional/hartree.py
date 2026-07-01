@@ -40,7 +40,7 @@ class Hartree(AbstractFunctional):
             v_h = rho_of_g * kern
         v_h_of_r = v_h.ifft(force_real=force_real)
         if 'E' in calcType:
-            e_h = np.einsum("ijk, ijk->", v_h_of_r, rho,optimize=True) * density.grid.dV / 2.0
+            e_h = (v_h_of_r * rho).integral() / 2.0
         else:
             e_h = 0
         if density.rank > 1:

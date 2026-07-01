@@ -303,7 +303,7 @@ def LDA(rho, calcType={"E", "V"}, **kwargs):
         ExRho = -3.0 / 4.0 * np.cbrt(3.0 / np.pi) * rho_cbrt
         ExRho[rs1] += a[0] * np.log(Rs[rs1]) + b[0] + c[0] * Rs[rs1] * np.log(Rs[rs1]) + d[0] * Rs[rs1]
         ExRho[rs2] += gamma[0] / (1.0 + beta1[0] * Rs2sqrt + beta2[0] * Rs[rs2])
-        ene = np.einsum("ijk, ijk->", ExRho, rho) * rho.grid.dV
+        ene = (ExRho * rho).integral()
         OutFunctional.energy = ene
     if "V" in calcType or "S" in calcType:
         pot = np.cbrt(-3.0 / np.pi) * rho_cbrt

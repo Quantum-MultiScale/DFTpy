@@ -39,9 +39,7 @@ def ThomasFermiEnergy(rho):
     """
     The Thomas-Fermi Energy
     """
-    edens = ThomasFermiEnergyDensity(rho)
-    ene = edens.sum() * rho.grid.dV
-    return ene
+    return ThomasFermiEnergyDensity(rho).integral()
 
 
 def ThomasFermiF(rho):
@@ -67,7 +65,7 @@ def TF(rho, x=1.0, calcType={"E", "V"}, split=False, **kwargs):
     OutFunctional = FunctionalOutput(name="TF")
     if "E" in calcType or "D" in calcType:
         energydensity = ThomasFermiEnergyDensity(rho)
-        ene = energydensity.sum() * rho.grid.dV
+        ene = energydensity.integral()
         OutFunctional.energy = ene * x
         if 'D' in calcType:
             OutFunctional.energydensity = energydensity

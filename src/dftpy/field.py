@@ -185,11 +185,12 @@ class DirectField(BaseField):
 
     def integral(self, gather = True):
         """ Returns the integral of self """
-        mp = self.mp if gather else np
         if self.rank == 1:
-            return mp.einsum("ijk->", self) * self.grid.dV
+            total = self.asum() if gather else np.sum(self)
         else:
-            return mp.einsum("ijkl->i", self) * self.grid.dV
+            local = np.sum(self, axis=(1, 2, 3))
+            total = self.mp.vsum(local) if gather else local
+        return total * self.grid.dV
 
     def _calc_spline(self):
         padded_values = np.pad(self, ((self.spl_order,)), mode="wrap")
@@ -798,16 +799,15 @@ class ReciprocalField(BaseField):
         """
         inv_vol = 1.0 / self.grid.get_direct().volume
         if self.grid.full:
-            if self.rank == 1:
-                return self.mp.einsum("ijk->", self) * inv_vol
-            else:
-                return self.mp.einsum("lijk->l", self) * inv_vol
+            data = self
         else:
             w = self._rfft_weight()
-            if self.rank == 1:
-                return self.mp.einsum("ijk->", self * w) * inv_vol
-            else:
-                return self.mp.einsum("lijk->l", self * w[np.newaxis]) * inv_vol
+            data = self * w if self.rank == 1 else self * w[np.newaxis]
+        if self.rank == 1:
+            total = data.asum()
+        else:
+            total = self.mp.vsum(np.sum(data, axis=(1, 2, 3)))
+        return total * inv_vol
 
     def _rfft_weight(self):
         """Multiplicity weights for rFFT half-grid: 2 for interior, 1 for self-conjugate planes."""

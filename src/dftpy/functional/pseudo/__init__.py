@@ -262,7 +262,7 @@ class LocalPseudo(AbstractLocalPseudo):
         pot = self._vreal
         if 'E' in calcType:
             rho = self._force_density(density)
-            ene = np.einsum("ijk, ijk->", pot, rho) * self.grid.dV
+            ene = (pot * rho).integral()
         else:
             ene = 0.0
 
