@@ -280,7 +280,7 @@ class ewald(object):
                 NotGoodEta = False
             else:
                 eta = eta - 0.01
-        sprint("Best Ewald Eta: ", eta)
+        # sprint("Best Ewald Eta: ", eta)
         return eta
 
     @timer()
@@ -475,7 +475,15 @@ class ewald(object):
         sum = 0
         sum=np.sum(self.ions.charges*self.ions.charges)
         dc_term = const * sum
-        return dc_term 
+        if self._mt is not None:
+            energy = dc_term
+        else:
+            # G=0 term of local_PP - Hartree
+            const = -4.0 * np.pi * (1.0 / (4.0 * self.eta * self.grid.volume) / 2.0)
+            sum = self.ions.get_ncharges()
+            gzero_limit = const * sum ** 2
+            energy = dc_term + gzero_limit
+        return energy
 
 
     @property
