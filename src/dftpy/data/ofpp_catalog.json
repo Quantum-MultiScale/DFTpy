@@ -1,0 +1,112 @@
+{
+  "OEPP": {
+    "Ag": {
+      "recpot": "OEPP/RECPOT/Ag_lda.oe01.recpot",
+      "upf": "OEPP/UPF/Ag_OEPP_PZ.UPF"
+    },
+    "Al": {
+      "recpot": "OEPP/RECPOT/Al_lda.oe01.recpot",
+      "upf": "OEPP/UPF/Al_OEPP_PZ.UPF"
+    },
+    "As": {
+      "recpot": "OEPP/RECPOT/As_lda.oe04.recpot",
+      "upf": "OEPP/UPF/As_OEPP_PZ.UPF"
+    },
+    "Ba": {
+      "recpot": "OEPP/RECPOT/Ba_lda.oe01.recpot",
+      "upf": "OEPP/UPF/Ba_OEPP_PZ.UPF"
+    },
+    "Be": {
+      "recpot": "OEPP/RECPOT/Be_lda.oe02.recpot",
+      "upf": "OEPP/UPF/Be_OEPP_PZ.UPF"
+    },
+    "Br": {
+      "recpot": "OEPP/RECPOT/Br_lda.oe01.recpot",
+      "upf": "OEPP/UPF/Br_OEPP_PZ.UPF"
+    },
+    "Ca": {
+      "recpot": "OEPP/RECPOT/Ca_lda.oe01.recpot",
+      "upf": "OEPP/UPF/Ca_OEPP_PZ.UPF"
+    },
+    "Cd": {
+      "recpot": "OEPP/RECPOT/Cd_lda.oe01.recpot",
+      "upf": "OEPP/UPF/Cd_OEPP_PZ.UPF"
+    },
+    "Cs": {
+      "recpot": "OEPP/RECPOT/Cs_lda.oe02.recpot",
+      "upf": "OEPP/UPF/Cs_OEPP_PZ.UPF"
+    },
+    "Ga": {
+      "recpot": "OEPP/RECPOT/Ga_lda.oe04.recpot",
+      "upf": "OEPP/UPF/Ga_OEPP_PZ.UPF"
+    },
+    "Ge": {
+      "recpot": "OEPP/RECPOT/Ge_lda.oe02.recpot",
+      "upf": "OEPP/UPF/Ge_OEPP_PZ.UPF"
+    },
+    "Hg": {
+      "recpot": "OEPP/RECPOT/Hg_lda.oe01.recpot",
+      "upf": "OEPP/UPF/Hg_OEPP_PZ.UPF"
+    },
+    "I": {
+      "recpot": "OEPP/RECPOT/I_lda.oe01.recpot",
+      "upf": "OEPP/UPF/I_OEPP_PZ.UPF"
+    },
+    "In": {
+      "recpot": "OEPP/RECPOT/In_lda.oe03.recpot",
+      "upf": "OEPP/UPF/In_OEPP_PZ.UPF"
+    },
+    "K": {
+      "recpot": "OEPP/RECPOT/K_lda.oe01.recpot",
+      "upf": "OEPP/UPF/K_OEPP_PZ.UPF"
+    },
+    "Li": {
+      "recpot": "OEPP/RECPOT/Li_lda.oe02.recpot",
+      "upf": "OEPP/UPF/Li_OEPP_PZ.UPF"
+    },
+    "Mg": {
+      "recpot": "OEPP/RECPOT/Mg_lda.oe01.recpot",
+      "upf": "OEPP/UPF/Mg_OEPP_PZ.UPF"
+    },
+    "Na": {
+      "recpot": "OEPP/RECPOT/Na_lda.oe02.recpot",
+      "upf": "OEPP/UPF/Na_OEPP_PZ.UPF"
+    },
+    "P": {
+      "recpot": "OEPP/RECPOT/P_lda.oe01.recpot",
+      "upf": "OEPP/UPF/P_OEPP_PZ.UPF"
+    },
+    "S": {
+      "recpot": "OEPP/RECPOT/S_lda.oe01.recpot",
+      "upf": "OEPP/UPF/S_OEPP_PZ.UPF"
+    },
+    "Sb": {
+      "recpot": "OEPP/RECPOT/Sb_lda.oe03.recpot",
+      "upf": "OEPP/UPF/Sb_OEPP_PZ.UPF"
+    },
+    "Se": {
+      "recpot": "OEPP/RECPOT/Se_lda.oe01.recpot",
+      "upf": "OEPP/UPF/Se_OEPP_PZ.UPF"
+    },
+    "Si": {
+      "recpot": "OEPP/RECPOT/Si_lda.oe01.recpot",
+      "upf": "OEPP/UPF/Si_OEPP_PZ.UPF"
+    },
+    "Sn": {
+      "recpot": "OEPP/RECPOT/Sn_lda.oe04.recpot",
+      "upf": "OEPP/UPF/Sn_OEPP_PZ.UPF"
+    },
+    "Sr": {
+      "recpot": "OEPP/RECPOT/Sr_lda.oe1.recpot",
+      "upf": "OEPP/UPF/Sr_OEPP_PZ.UPF"
+    },
+    "Te": {
+      "recpot": "OEPP/RECPOT/Te_lda.oe03.recpot",
+      "upf": "OEPP/UPF/Te_OEPP_PZ.UPF"
+    },
+    "Zn": {
+      "recpot": "OEPP/RECPOT/Zn_lda.oe03.recpot",
+      "upf": "OEPP/UPF/Zn_OEPP_PZ.UPF"
+    }
+  }
+}

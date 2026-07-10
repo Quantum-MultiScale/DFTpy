@@ -72,10 +72,14 @@ def ConfigParser(config, ions=None, rhoini=None, pseudo=None, grid=None, mp = No
         mt = MartynaTuckerman(grid, ions=ions, alpha=alpha_mt)
         sprint("Martyna–Tuckerman screening is enabled (alpha={})".format("auto" if alpha_mt is None else alpha_mt))
     ############################## PSEUDO  ##############################
-    PPlist = {}
-    for key in config["PP"]:
-        ele = key.capitalize()
-        PPlist[ele] = config["PATH"]["pppath"] +os.sep+ config["PP"][key]
+    from dftpy.functional.pseudo.ofpp_resolver import build_pp_list
+
+    PPlist = build_pp_list(
+        ions=ions,
+        pp_config=config["PP"],
+        pppath=config["PATH"]["pppath"],
+        ofpp_config=config.get("OFPP") or {},
+    )
     optional_kwargs = {}
     optional_kwargs["PP_list"] = PPlist
     optional_kwargs["ions"] = ions
