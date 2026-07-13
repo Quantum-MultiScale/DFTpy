@@ -829,6 +829,7 @@ class ReciprocalField(BaseField):
         fft_kwargs = {}
         if environ["FFTLIB"] == "numpy":
             fft_kwargs['s'] = self.grid.nrR
+            fft_kwargs['axes'] = tuple(range(len(self.grid.nrR)))
         if self.rank == 1:
             griddata_3d = self.ifft_object(self, **fft_kwargs) / direct_grid.dV
         else:
