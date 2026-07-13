@@ -95,6 +95,34 @@
 	 "default": {},
      "example": "Al = Al_lda.oe01.recpot"
   },
+  "OFPP": {
+    "comment": {
+      "type": "str",
+      "default": "Automatic pseudopotential lookup from https://github.com/Quantum-MultiScale/OFPP."
+    },
+    "auto": {
+      "comment": "Resolve missing species from OFPP (manual [PP] entries take precedence).",
+      "options": "True, False",
+      "type": "bool",
+      "default": false
+    },
+    "families": {
+      "comment": "Ordered OFPP libraries to try. Examples: OEPP, PGBRV0.2, PPSL0.2, HQLPP, OEPP:recpot.",
+      "type": "cstrlist",
+      "default": "OEPP PGBRV0.2"
+    },
+    "cache_dir": {
+      "comment": "Directory for downloaded pseudopotentials. Default: ~/.cache/dftpy/ofpp or DFTPY_PP_CACHE.",
+      "type": "path",
+      "default": null
+    },
+    "offline": {
+      "comment": "Use only local/cache pseudopotentials; do not download.",
+      "options": "True, False",
+      "type": "bool",
+      "default": false
+    }
+  },
   "CELL": {
     "comment": {
       "type": "str",

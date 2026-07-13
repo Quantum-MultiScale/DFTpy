@@ -76,9 +76,45 @@ class LocalPseudo(AbstractLocalPseudo):
     """
     LocalPseudo class handles local pseudo potentials.
     This is a template class and should never be touched.
+
+    ``PP_list`` may be omitted or incomplete: missing species are resolved
+    automatically via OFPP when ``ions`` is provided (see ``families``,
+    ``resolver``, ``search_paths``, ``cache_dir``, ``offline``).
     """
 
-    def __init__(self, grid=None, ions=None, PP_list=None, PME=True, readpp = None, comm = None, BsplineOrder = 10, mt=None, **kwargs):
+    @staticmethod
+    def _complete_pp_list(ions, PP_list=None, families=None, resolver=None,
+                          search_paths=None, cache_dir=None, offline=None):
+        """Fill missing ``PP_list`` entries from OFPP for species in ``ions``."""
+        from dftpy.functional.pseudo.ofpp_resolver import OFPPResolver, _normalize_symbol
+
+        pp_list = dict(PP_list or {})
+        if ions is None:
+            return pp_list
+
+        missing = [
+            _normalize_symbol(symbol)
+            for symbol in ions.symbols_uniq
+            if _normalize_symbol(symbol) not in pp_list
+        ]
+        if not missing:
+            return pp_list
+
+        if resolver is None:
+            kwargs = {"families": families, "search_paths": search_paths}
+            if cache_dir is not None:
+                kwargs["cache_dir"] = cache_dir
+            if offline is not None:
+                kwargs["offline"] = offline
+            resolver = OFPPResolver(**kwargs)
+
+        for key in missing:
+            pp_list[key] = str(resolver.resolve(key))
+        return pp_list
+
+    def __init__(self, grid=None, ions=None, PP_list=None, PME=True, readpp=None,
+                 comm=None, BsplineOrder=10, mt=None, families=None, resolver=None,
+                 search_paths=None, cache_dir=None, offline=None, **kwargs):
 
         self.type = 'PSEUDO'
         self.name = 'PSEUDO'
@@ -90,12 +126,24 @@ class LocalPseudo(AbstractLocalPseudo):
                 comm = SerialComm()
 
         # Read PP first, then initialize other variables.
-        if readpp is not None :
+        if readpp is not None:
             self.readpp = readpp
-        elif PP_list is not None:
-            self.readpp = ReadPseudo(PP_list, comm=comm, **kwargs)
         else:
-            raise AttributeError("Must specify PP_list for Pseudopotentials")
+            PP_list = self._complete_pp_list(
+                ions,
+                PP_list=PP_list,
+                families=families,
+                resolver=resolver,
+                search_paths=search_paths,
+                cache_dir=cache_dir,
+                offline=offline,
+            )
+            if not PP_list:
+                raise AttributeError(
+                    "Must specify PP_list for Pseudopotentials, or provide ions "
+                    "for OFPP auto-resolution"
+                )
+            self.readpp = ReadPseudo(PP_list, comm=comm, **kwargs)
 
         self.PME = PME
         self.BsplineOrder = BsplineOrder
