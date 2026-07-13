@@ -191,9 +191,15 @@ def test_ewald_with_mt_includes_ion_screening_energy(cubic_grid_serial):
     mt = MartynaTuckerman(g)
     ions = Ions(symbols=["H"], positions=np.array([[1.0, 1.0, 1.0]]), cell=g.lattice)
     ions.set_charges([1.5])
-    e0 = ewald(ions=ions, grid=g, mt=None).energy
-    e1 = ewald(ions=ions, grid=g, mt=mt).energy
-    np.testing.assert_allclose(e1, e0 + mt.ion_ewald_energy(ions), rtol=1e-10, atol=1e-10)
+    ew_plain = ewald(ions=ions, grid=g, mt=None)
+    ew_mt = ewald(ions=ions, grid=g, mt=mt)
+    delta_corr = ew_mt.Energy_corr() - ew_plain.Energy_corr()
+    np.testing.assert_allclose(
+        ew_mt.energy,
+        ew_plain.energy + mt.ion_ewald_energy(ions) + delta_corr,
+        rtol=1e-10,
+        atol=1e-10,
+    )
 
 
 def test_ws_dist_corner_cvp_equals_brute_triclinic():

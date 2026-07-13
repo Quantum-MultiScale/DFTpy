@@ -157,9 +157,11 @@ class TestEwaldIonIonEnergy:
         ions.set_charges([3.0] * 4)
         ew_plain = ewald(ions=ions, grid=grid, PME=False, mt=None)
         ew_mt = ewald(ions=ions, grid=grid, PME=False, mt=mt)
-        ion_corr = mt.ion_ewald_energy(ions)
+        delta_corr = ew_mt.Energy_corr() - ew_plain.Energy_corr()
         np.testing.assert_allclose(
-            ew_mt.energy, ew_plain.energy + ion_corr, rtol=1e-10
+            ew_mt.energy,
+            ew_plain.energy + mt.ion_ewald_energy(ions) + delta_corr,
+            rtol=1e-10,
         )
 
     def test_ewald_mt_forces_fd(self, al4_setup):
