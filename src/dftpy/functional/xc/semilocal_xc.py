@@ -171,8 +171,9 @@ def Get_LibXC_Output(out, density, gradient=None, **kwargs):
             rho = np.sum(density, axis=0)
         else:
             rho = density
-        edens = rho * out["zk"].reshape(np.shape(rho))
-        ene = edens.sum() * density.grid.dV
+        zk = out["zk"].reshape(np.shape(rho))
+        edens = np.asarray(rho * zk)
+        ene = density.mp.asum(edens) * density.grid.dV
         OutFunctional.energy = ene
         OutFunctional.energydensity = edens
 

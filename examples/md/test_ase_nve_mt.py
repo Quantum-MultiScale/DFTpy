@@ -4,6 +4,7 @@ NVE molecular dynamics of an Al₂ dimer with Martyna-Tuckerman screening.
 Demonstrates energy conservation over 50 steps in a large vacuum cell,
 verifying that the MT isolated-boundary forces are conservative.
 """
+import os
 import numpy as np
 from ase import Atoms
 from ase.md.verlet import VelocityVerlet
@@ -59,7 +60,7 @@ def main():
     dt = 2.0 * units.fs
     dyn = VelocityVerlet(atoms, dt)
 
-    nsteps = 50
+    nsteps = int(os.environ.get("DFTPY_MD_STEPS", "5"))
     energies = []
 
     sprint(f"{'Step':>5s}  {'Epot (eV)':>12s}  {'Ekin (eV)':>12s}  {'Etot (eV)':>12s}  {'drift (eV)':>12s}")

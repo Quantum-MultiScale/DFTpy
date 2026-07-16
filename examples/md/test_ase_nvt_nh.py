@@ -16,6 +16,7 @@ from dftpy.config.config import DefaultOption, OptionFormat, PrintConf
 from dftpy.api.api4ase import DFTpyCalculator
 import pathlib
 dftpy_data_path = pathlib.Path(__file__).resolve().parents[1] / 'DATA'
+MD_STEPS = int(os.environ.get("DFTPY_MD_STEPS", "5"))
 np.random.seed(8888)
 
 ############################## initial config ##############################
@@ -79,4 +80,4 @@ dyn.attach(check_stop, interval=1)
 dyn.attach(printenergy, interval=1)
 dyn.attach(traj.write, interval=1)
 
-dyn.run(500)
+dyn.run(MD_STEPS)

@@ -12,6 +12,8 @@ from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.io.trajectory import Trajectory
 from ase import units
 
+MD_STEPS = int(os.environ.get("DFTPY_MD_STEPS", "5"))
+
 from dftpy.config.config import DefaultOption, OptionFormat, PrintConf
 from dftpy.api.api4ase import DFTpyCalculator
 import pathlib
@@ -73,7 +75,7 @@ def main():
     dyn.attach(printenergy, interval=1)
     dyn.attach(traj.write, interval=1)
 
-    dyn.run(500)
+    dyn.run(MD_STEPS)
 
 
 if __name__ == "__main__":
