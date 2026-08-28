@@ -66,6 +66,116 @@ def DiagonalizeRunner(config, field, ions, E_v_Evaluator):
     for i in range(len(eigs)):
         io.write('{0:s}/psi{1:d}.xsf'.format(direct_to_psi, i), ions, psi_list[i])
 
+def StoppingPowerRunner(config, rho0, E_v_Evaluator):
+    """
+    Electronic stopping power: fly a charged projectile through the system.
+
+    Entry point for ``task = Stopping``. Thin wrapper around
+    :class:`dftpy.td.stopping_runner.StoppingRunner`, which subclasses
+    :class:`dftpy.td.real_time_runner.RealTimeRunner` and adds the projectile.
+
+    The projectile is defined by the ``[PROJECTILE]`` config section. Ions are
+    held frozen: this is the ELECTRONIC stopping power, so the energy must go
+    into the electrons rather than into recoiling ions.
+
+    Parameters
+    ----------
+    config: dict
+        Needs [TD], [PROPAGATOR] and [PROJECTILE].
+    rho0: DirectField
+        Converged ground-state density of the host system.
+    E_v_Evaluator: AbstractFunctional
+        Total functional.
+
+    Returns
+    -------
+    StoppingRunner
+        The runner, so ``.stopping_power_average`` and ``.stopping_history``
+        remain accessible after the run.
+    """
+    from dftpy.td.stopping_runner import StoppingRunner
+
+    runner = StoppingRunner.from_config(config, rho0, E_v_Evaluator)
+    sprint('Start stopping power propagation.')
+    runner()
+    sprint('Stopping power propagation done.')
+    return runner
+
+
+def EhrenfestRunner(config, ions, rho0, E_v_Evaluator):
+    """
+    Ehrenfest molecular dynamics: ions move while the electrons are propagated.
+
+    Entry point for ``task = Ehrenfest``. Unlike Born-Oppenheimer MD the density
+    is *not* re-minimised at each ionic step, so the electrons may lag behind the
+    ions and carry a current - which is what allows electronic excitation.
+
+    Driven by the ``[EHRENFEST]`` config section. The two time steps must satisfy
+    ``dt_ion = nsub * dt_elec``; ``nsub`` is derived and an inconsistent pair
+    raises, because getting this wrong does not fail loudly - it silently stops
+    being Ehrenfest dynamics.
+
+    Parameters
+    ----------
+    config: dict
+        Needs [EHRENFEST]; [PROJECTILE] is optional (a projectile with mobile ions).
+    ions: Ions
+        The ionic configuration.
+    rho0: DirectField
+        Converged ground-state density at the initial ion positions.
+    E_v_Evaluator: AbstractFunctional
+        Total functional. NOTE: its KEDF is modified in place (vW removed, since
+        the laplacian in the Hamiltonian supplies it). Do not reuse the same
+        object for a Born-Oppenheimer run.
+
+    Returns
+    -------
+    EhrenfestCalculator
+        The calculator, so ``.time``, ``.rho`` and ``.n_electron_steps`` remain
+        accessible after the run.
+    """
+    from ase.io.trajectory import Trajectory
+    from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
+    from ase.md.verlet import VelocityVerlet
+
+    from dftpy.td.ehrenfest import EhrenfestCalculator
+
+    c = config["EHRENFEST"]
+    atoms = ions.to_ase() if hasattr(ions, 'to_ase') else ions
+
+    calc = EhrenfestCalculator.from_config(config, rho0, E_v_Evaluator)
+    atoms.calc = calc
+
+    if c["temperature"] > 0:
+        MaxwellBoltzmannDistribution(atoms, temperature_K=c["temperature"])
+
+    dyn = VelocityVerlet(atoms, timestep=calc.dt_ion_ase) # We could use other ASE MD
+    if c["trajfile"]:
+        dyn.attach(Trajectory(c["trajfile"], 'w', atoms).write, interval=1)
+
+    fh = open(c["logfile"], 'w') if c["logfile"] else None
+    if fh:
+        fh.write("# time(au)  Epot(eV)  Ekin(eV)  Etot(eV)  N_elec\n")
+
+    def _log(a=atoms):
+        epot = a.get_potential_energy()
+        ekin = a.get_kinetic_energy()
+        line = (f"{a.info['dftpy_time_au']:14.6f} {epot:16.8f} {ekin:14.8f} "
+                f"{epot + ekin:16.8f} {a.info['dftpy_nelec']:14.8f}")
+        sprint(line)
+        if fh:
+            fh.write(line + "\n"); fh.flush()
+
+    dyn.attach(_log, interval=1)
+    sprint('Start Ehrenfest dynamics.')
+    sprint("# time(au)  Epot(eV)  Ekin(eV)  Etot(eV)  N_elec")
+    dyn.run(c["nsteps"])
+    sprint('Ehrenfest dynamics done.')
+    if fh:
+        fh.close()
+    return calc
+
+
 # def SternheimerRunner(config, rho0, E_v_Evaluator):
 #     outfile = config["TD"]["outfile"]
 #

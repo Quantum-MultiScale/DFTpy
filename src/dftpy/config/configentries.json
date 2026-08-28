@@ -8,7 +8,7 @@
       "type": "cstr",
       "default": "Optdensity",
       "comment": "The task to be performed.",
-      "options": "Optdensity, Calculation, Propagate, Casida, Diagonalize, Inversion"
+      "options": "Optdensity, Calculation, Propagate, Casida, Diagonalize, Inversion, Stopping, Ehrenfest"
     },
     "calctype": {
       "type": "cstrlist",
@@ -90,10 +90,10 @@
     }
   },
   "PP": {
-     "comment": "Pseudopotential files for each atomic species",
-     "type": "cdict",
-	 "default": {},
-     "example": "Al = Al_lda.oe01.recpot"
+    "comment": "Pseudopotential files for each atomic species",
+    "type": "cdict",
+    "default": {},
+    "example": "Al = Al_lda.oe01.recpot"
   },
   "OFPP": {
     "comment": {
@@ -832,6 +832,92 @@
       "default": null,
       "options": "",
       "comment": "Output file for the potential."
+    }
+  },
+  "PROJECTILE": {
+    "comment": {
+      "type": "str",
+      "default": "Moving projectile for electronic stopping power (task = Stopping)."
+    },
+    "charge": {
+      "type": "float",
+      "default": 1.0,
+      "options": "",
+      "comment": "Charge of the projectile in a.u. Use 2.0 for a fully stripped alpha particle."
+    },
+    "position": {
+      "type": "floatlist",
+      "default": "0.5 0.5 0.0",
+      "options": "",
+      "comment": "Initial position in FRACTIONAL coordinates of the cell.",
+      "example": "position = 0.275 0.925 0.0"
+    },
+    "velocity": {
+      "type": "floatlist",
+      "default": "0.0 0.0 1.0",
+      "options": "",
+      "comment": "Velocity in a.u. Its direction defines the trajectory and its magnitude is held fixed.",
+      "example": "velocity = 0.0 0.0 5.0"
+    },
+    "sigma": {
+      "type": "float",
+      "default": 0.3,
+      "options": "",
+      "comment": "Gaussian width of the projectile charge in bohr. This is the projectile pseudopotential: it must be resolvable on the grid (sigma > ~1.2 * grid spacing) and results must be converged against it."
+    },
+    "mass": {
+      "type": "float",
+      "default": 1.007,
+      "options": "",
+      "comment": "Mass in amu. Only used to report the momentum column; the trajectory is analytic."
+    },
+    "outfile": {
+      "type": "str",
+      "default": "Stopping_Power.data",
+      "options": "",
+      "comment": "Output file. Columns match the SHRED code: time, R, P, S(t), <S>, rho, rho/<rho>, F."
+    }
+  },
+  "EHRENFEST": {
+    "comment": {
+      "type": "str",
+      "default": "Ehrenfest molecular dynamics: ions move classically while the electrons are propagated in real time (task = Ehrenfest)."
+    },
+    "dt_elec": {
+      "type": "float",
+      "default": 0.01,
+      "options": "",
+      "comment": "Electronic time step in a.u. Resolves ELECTRON motion, so it is small (~0.01-0.05)."
+    },
+    "dt_ion": {
+      "type": "float",
+      "default": 1.0,
+      "options": "",
+      "comment": "Ionic time step in a.u. Resolves ION motion (~1-10). MUST be an integer multiple of dt_elec; nsub = dt_ion/dt_elec is derived and an inconsistent pair raises an error."
+    },
+    "nsteps": {
+      "type": "int",
+      "default": 100,
+      "options": "",
+      "comment": "Number of IONIC steps to run."
+    },
+    "temperature": {
+      "type": "float",
+      "default": 0.0,
+      "options": "",
+      "comment": "If > 0, draw initial ion velocities from a Maxwell-Boltzmann distribution at this temperature in K."
+    },
+    "trajfile": {
+      "type": "str",
+      "default": "ehrenfest.traj",
+      "options": "",
+      "comment": "ASE trajectory output file."
+    },
+    "logfile": {
+      "type": "str",
+      "default": "ehrenfest.log",
+      "options": "",
+      "comment": "Per-step log: time, energies, electron number."
     }
   }
 }

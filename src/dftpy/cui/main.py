@@ -18,7 +18,7 @@ def GetConf():
 
 def RunJob(args):
     from dftpy.interface import ConfigParser, OptimizeDensityConf, InvertRunner
-    from dftpy.td.interface import CasidaRunner, DiagonalizeRunner
+    from dftpy.td.interface import CasidaRunner, DiagonalizeRunner, StoppingPowerRunner, EhrenfestRunner
     from dftpy.td.real_time_runner import RealTimeRunner
     import time
     from dftpy.time_data import TimeData
@@ -41,6 +41,10 @@ def RunJob(args):
         if "Propagate" in config["JOB"]["task"]:
             realtimerunner = RealTimeRunner(others["field"], config, others["E_v_Evaluator"])
             realtimerunner()
+        elif "Stopping" in config["JOB"]["task"]:
+            StoppingPowerRunner(config, others["field"], others["E_v_Evaluator"])
+        elif "Ehrenfest" in config["JOB"]["task"]:
+            EhrenfestRunner(config, others["ions"], others["field"], others["E_v_Evaluator"])
         elif "Casida" in config["JOB"]["task"]:
             CasidaRunner(config, others["field"], others["E_v_Evaluator"])
         elif "Diagonalize" in config["JOB"]["task"]:
