@@ -72,6 +72,9 @@ ENERGY_CONV = conv2conv(ENERGY_CONV)
 FORCE_CONV = {"Ha/Bohr": {"eV/A" : Units.Ha/Units.Bohr}}
 FORCE_CONV = conv2conv(FORCE_CONV)
 
+FORCE_CONV = {"Ry/Bohr": {"eV/A" : Units.Ry/Units.Bohr}}
+FORCE_CONV = conv2conv(FORCE_CONV)
+
 STRESS_CONV = {"eV/A3" : {"GPa": 1.0/Units.GPa, "Ha/Bohr3" : Units.Bohr ** 3 / Units.Ha}}
 STRESS_CONV = conv2conv(STRESS_CONV)
 

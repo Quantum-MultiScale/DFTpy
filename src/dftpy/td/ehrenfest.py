@@ -113,7 +113,7 @@ class EhrenfestCalculator(Calculator):
     implemented_properties = ['energy', 'forces']
 
     def __init__(self, evaluator, rho, dt_elec, dt_ion, propagator='crank-nicholson',
-                 max_pc=100, tol_pc=1.0e-8, norm_tol=1.0e-8, projectile=None,
+                 max_pc=100, tol_pc=1.0e-8, norm_tol=1.0e-8, qepy_calculator=None,  projectile=None,
                  mp=None, **kwargs):
         Calculator.__init__(self, **kwargs)
 
@@ -267,9 +267,13 @@ class EhrenfestCalculator(Calculator):
         e_vw = self._vw(self.rho).energy
         e_j = current_kinetic_energy(self.j, self.rho)
         energy = (ene + e_vw + e_j) * ENERGY_CONV["Hartree"]["eV"]
-
-        forces = self.evaluator.get_forces(self.rho, ions=ions)
-        forces = np.asarray(forces) * FORCE_CONV["Ha/Bohr"]["eV/A"]
+        
+         if qepy_calculator is not None:
+            forces = qepy_calculator.get_forces()
+            forces = np.asarray(forces) * FORCE_CONV["Ry/Bohr"]["ev/A"]
+        else:
+            forces = self.evaluator.get_forces(self.rho, ions=ions)
+            forces = np.asarray(forces) * FORCE_CONV["Ha/Bohr"]["eV/A"]
 
         self.results['energy'] = energy
         self.results['forces'] = forces
