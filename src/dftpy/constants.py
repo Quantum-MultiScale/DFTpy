@@ -69,10 +69,10 @@ LEN_CONV = conv2conv(LEN_CONV)
 ENERGY_CONV= {"Hartree": {"eV": Units.Ha}}
 ENERGY_CONV = conv2conv(ENERGY_CONV)
 
-FORCE_CONV = {"Ha/Bohr": {"eV/A" : Units.Ha/Units.Bohr}}
-FORCE_CONV = conv2conv(FORCE_CONV)
-
-FORCE_CONV = {"Ry/Bohr": {"eV/A" : Units.Ry/Units.Bohr}}
+# conv2conv expands a SINGLE base entry into all pairwise conversions, so every
+# unit must live in the base dict. Assigning FORCE_CONV a second time instead
+# would discard the first set of keys.
+FORCE_CONV = {"Ha/Bohr": {"eV/A" : Units.Ha/Units.Bohr, "Ry/Bohr": 2.0}}
 FORCE_CONV = conv2conv(FORCE_CONV)
 
 STRESS_CONV = {"eV/A3" : {"GPa": 1.0/Units.GPa, "Ha/Bohr3" : Units.Bohr ** 3 / Units.Ha}}
