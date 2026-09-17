@@ -37,6 +37,8 @@ TDDFT
 .. toctree::
    :maxdepth: 1
 
+   tddft/hamiltonian_diagonalization
+   tddft/casida_diagonalization
    jupyter/td-ofdft-tutorial
    jupyter/lr-ofdft-tutorial
 
@@ -63,4 +65,3 @@ These notebooks are also built into this manual. To work on your machine, grab t
    :hidden:
 
    jupyter/density_optimization
-
