@@ -699,7 +699,7 @@ class ReciprocalGrid(BaseGrid):
                     mask[:, :, Dnr[2] + 1 :] = False
                 else:
                     mask[:, :, :] = False
-            Dnr = np.where(Dnr > 0, Dnr, 0)
+            Dnr = np.where(Dnr > -1, Dnr, -1)
             Dmod = nrR[:3] % 2
             if self.offsets[0] == self.offsets[2] == 0 :
                 mask[0, Dnr[1] + 1 :, 0] = False
