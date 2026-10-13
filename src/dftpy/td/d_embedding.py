@@ -90,7 +90,8 @@ def element_data(upf=None):
     shell = el["shell"]
     el["n_shell"], el["l_shell"] = int(shell[:-1]), _L_OF[shell[-1]]
     el["n_elec"] = float(2 * (2 * el["l_shell"] + 1))
-    el["peak_win_ev"] = tuple(el["peak_win_ev"])
+    if "peak_win_ev" in el:
+        el["peak_win_ev"] = tuple(el["peak_win_ev"])
     el["source"] = Path(src).name
     _CACHE[src] = el
     return el
@@ -159,7 +160,13 @@ class Grid(DirectGrid):
 def coordination(positions, L, r_cut=None, upf=None):
     """Neighbours within r_cut of each atom.  ALL LENGTHS IN BOHR."""
     if r_cut is None:
-        r_cut = element_data(upf)["coordination_r_cut"]
+        r_cut = element_data(upf).get("coordination_r_cut")
+    if r_cut is None:
+        raise ValueError(
+            "no neighbour cutoff: pass r_cut=, or stamp the "
+            "pseudopotential with a coordination_r_cut in its "
+            "element_params. There is no sensible default -- it depends "
+            "on the element's pair-distance distribution.")
     n = len(positions)
     cn = np.zeros(n)
     for i in range(n):

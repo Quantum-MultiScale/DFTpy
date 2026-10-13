@@ -510,6 +510,63 @@ class OEPP(BasePseudo):
             out["shell_data"] = shell_data
         return out
 
+    @staticmethod
+    def _read_d_block(upf):
+        """The parsed d block of a UPF, or None."""
+        try:
+            txt = Path(upf).read_text(errors="replace")
+        except OSError:
+            return None
+        m = re.search(rf"{DBLOCK_BEGIN}\s*(\{{.*?\}})\s*{DBLOCK_END}", txt, re.S)
+        return json.loads(m.group(1)) if m else None
+
+    def embed_shell(self, upf, npz, params=None, out=None, shell=None):
+        """Make a pseudopotential self-describing for d embedding.
+
+        Encodes the radial core and virtual orbitals from `npz` and merges
+        them, with `params`, into the UPF's d block -- after which
+        dftpy.td.d_embedding needs no companion data file to run linear
+        response with this pseudopotential.
+
+        element and shell are read from the npz, not passed in, and the npz's
+        element is checked against the UPF's: stamping an Ag shell into a Cu
+        pseudopotential would otherwise go unnoticed until the spectra came
+        out wrong.  `params` carries only what the npz cannot know -- the bulk
+        polarizability, the neighbour cutoff, the peak window.
+
+        Returns (destination, info).
+        """
+        z = np.load(str(npz), allow_pickle=True)
+        sym = str(z["element"]) if "element" in z.files else None
+        mine = self.info.get("element")
+        if sym and mine and sym.strip().lower() != str(mine).strip().lower():
+            raise ValueError(
+                f"{Path(npz).name} holds {sym} data but {Path(upf).name} is a "
+                f"{mine} pseudopotential; refusing to stamp one into the other")
+        if shell is None:
+            shell = (params or {}).get("shell")
+        if shell is None:
+            lbl = [k for k in z.files
+                   if k.startswith("selected_") and k.endswith("_label")]
+            if not lbl:
+                raise ValueError(
+                    f"{npz}: cannot tell which shell this is; pass shell=")
+            shell = str(z[lbl[0]]).strip()
+
+        sd = self.encode_shell_data(npz, shell=shell)
+        # merge onto whatever the file already carries, so re-embedding with
+        # no params does not silently drop optional values set earlier
+        prev = (self._read_d_block(upf) or {}).get("element_params") or {}
+        ep = dict(prev, **dict(params or {}), shell=shell)
+        before = Path(upf).stat().st_size
+        dst = self.update_d_block(upf, out=out, element_params=ep,
+                                  shell_data=sd)
+        info = dict(element=sym or mine, shell=shell, source=Path(npz).name,
+                    bytes_before=before, bytes_after=dst.stat().st_size,
+                    payload_kb=sum(len("".join(v["b64"])) for v in sd.values()
+                                   if isinstance(v, dict)) / 1024)
+        return dst, info
+
     def update_d_block(self, upf, out=None, **fields):
         """Merge fields into a UPF's existing d block, creating one if absent.
 
@@ -597,3 +654,46 @@ class OEPP(BasePseudo):
             return (f"<OEPP built {b['mode']} u_ks={b['u_ks_ev']:g} "
                     f"u_shift={b['u_shift_ev']:g} npts={len(self.r)}>")
         return f"<OEPP {self.info.get('fname', '?')} zval={self._zval}>"
+
+
+def _cli(argv=None):
+    """python -m dftpy.functional.pseudo.oepp --embed <npz> <upf>...
+
+    Embeds the element's d-shell data in each pseudopotential, after which
+    dftpy.td.d_embedding reads everything it needs from the UPF itself.
+    element and shell come from the npz; --params adds the optional extras
+    (alpha_bulk, coordination_r_cut, peak_win_ev, ...) as a JSON object or a
+    path to one.
+    """
+    import argparse
+    ap = argparse.ArgumentParser(prog="dftpy.functional.pseudo.oepp")
+    ap.add_argument("--embed", metavar="NPZ", type=Path, required=True,
+                    help="radial core/virtual orbitals to embed")
+    ap.add_argument("upf", nargs="+", type=Path)
+    ap.add_argument("--params", default=None,
+                    help="JSON object, or a path to a .json file")
+    ap.add_argument("--shell", default=None,
+                    help="override the shell read from the npz, e.g. 4d")
+    ap.add_argument("--dry-run", action="store_true")
+    a = ap.parse_args(argv)
+
+    params = None
+    if a.params:
+        p = Path(a.params)
+        params = json.loads(p.read_text() if p.is_file() else a.params)
+
+    for upf in a.upf:
+        if a.dry_run:
+            print(f"  would embed into {upf}  "
+                  f"({upf.stat().st_size / 1024:.0f} KB)")
+            continue
+        _, info = OEPP(str(upf)).embed_shell(upf, a.embed, params,
+                                             shell=a.shell)
+        print(f"  {upf.name:34s} {info['bytes_before'] / 1024:6.0f} -> "
+              f"{info['bytes_after'] / 1024:6.0f} KB   "
+              f"{info['element']} {info['shell']}  "
+              f"({info['payload_kb']:.0f} KB orbitals)")
+
+
+if __name__ == "__main__":
+    _cli()
