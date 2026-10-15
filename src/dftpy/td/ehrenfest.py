@@ -36,7 +36,7 @@ import numpy as np
 
 from ase.calculators.calculator import Calculator, all_changes
 
-from dftpy.constants import ENERGY_CONV, FORCE_CONV
+from dftpy.constants import ENERGY_CONV, FORCE_CONV, LEN_CONV
 from dftpy.field import DirectField
 from dftpy.functional import Functional
 from dftpy.ions import Ions
@@ -46,7 +46,39 @@ from dftpy.td.predictor_corrector import PredictorCorrector
 from dftpy.td.propagator import Propagator
 from dftpy.utils.utils import calc_rho, calc_j
 
-__all__ = ['EhrenfestCalculator', 'current_kinetic_energy']
+__all__ = ['EhrenfestCalculator', 'current_kinetic_energy', 'ks_forces']
+
+
+def ks_forces(calculator, atoms, positions=None):
+    """
+    Ion forces from any ASE calculator, in eV/A. Typically Kohn-Sham via QEpy.
+
+    Parameters
+    ----------
+    calculator: ase.calculators.calculator.Calculator
+        e.g. ``qepy.calculator.QEpyCalculator``.
+    atoms: ase.Atoms
+    positions: array_like, optional
+        Cartesian positions in Angstrom. Defaults to the ones on ``atoms``.
+
+    Notes
+    -----
+    NO unit conversion is applied, and that is deliberate. Every ASE calculator
+    returns forces in eV/A by contract, and ``QEpyCalculator`` is one - it has
+    already converted from the Ry/au that Quantum ESPRESSO prints internally.
+    Measured on H8: QE printed [0.15864, -0.06834, -0.02380] Ry/au and
+    ``get_forces()`` returned [4.07876, -1.75697, -0.61187], a ratio of exactly
+    25.711 = FORCE_CONV["Ry/Bohr"]["eV/A"]. Applying that factor again would
+    scale the forces by 25.7.
+
+    Contrast ``evaluator.get_forces()``, which is DFTpy's own and DOES return
+    Ha/bohr, hence the FORCE_CONV["Ha/Bohr"]["eV/A"] in :meth:`_forces`.
+    """
+    atoms = atoms.copy()                 # never rebind the caller's atoms.calc
+    if positions is not None:
+        atoms.positions = np.asarray(positions, dtype=float)
+    atoms.calc = calculator
+    return np.asarray(atoms.get_forces())        # eV/A already
 
 # ASE keeps time in its own units; 1 a.u. of time in ASE units
 from ase.units import fs as _ASE_FS
@@ -80,10 +112,7 @@ class EhrenfestCalculator(Calculator):
     Parameters
     ----------
     evaluator: TotalFunctional
-        Total functional for the electrons. Its KEDF has vW removed internally
-        for the propagation (see the module docstring).
     rho: DirectField
-        Converged ground-state density at the initial ion positions.
     dt_elec: float
         Electronic timestep in a.u. Resolves electron motion, so it is small
         (order 0.01 a.u.).
@@ -101,6 +130,17 @@ class EhrenfestCalculator(Calculator):
     projectile: Projectile, optional
         A charge flying through the system, for stopping-power runs with mobile
         ions. See :mod:`dftpy.td.projectile`.
+    qepy_calculator: ase Calculator, optional
+        Take the ION forces from this calculator instead of from the OF
+        functional - typically ``QEpyCalculator``, i.e. Kohn-Sham forces. The
+        ELECTRONS are still propagated orbital-free. Three consequences, all
+        real:
+
+    store_of_forces: bool
+        When ``qepy_calculator`` is set, also compute the OF forces each step
+        and stash them in ``atoms.info['dftpy_forces_of']``, so the two can be
+        compared for free during a production run. Costs one extra OF force
+        evaluation per ionic step, which is negligible next to the KS SCF.
 
     Attributes
     ----------
@@ -113,9 +153,18 @@ class EhrenfestCalculator(Calculator):
     implemented_properties = ['energy', 'forces']
 
     def __init__(self, evaluator, rho, dt_elec, dt_ion, propagator='crank-nicholson',
-                 max_pc=100, tol_pc=1.0e-8, norm_tol=1.0e-8, qepy_calculator=None,  projectile=None,
+                 max_pc=100, tol_pc=1.0e-8, norm_tol=1.0e-8, qepy_calculator=None,
+                 store_of_forces=True, energy_from='auto', projectile=None,
                  mp=None, **kwargs):
         Calculator.__init__(self, **kwargs)
+        self.qepy_calculator = qepy_calculator
+        self.store_of_forces = store_of_forces
+        if energy_from not in ('auto', 'of', 'ks'):
+            raise ValueError("energy_from must be 'auto', 'of' or 'ks'")
+        self.energy_from = energy_from
+        # previous ionic positions, so the ionic potential can be interpolated
+        # across the electronic sub-steps instead of jumping to the endpoint
+        self._prev_positions = None
 
         # ---- clock consistency, checked rather than assumed ---------------
         nsub = int(round(dt_ion / dt_elec))
@@ -216,10 +265,27 @@ class EhrenfestCalculator(Calculator):
             pot = pot + self.projectile.potential(self.rho.grid, tt)
         return pot
 
-    def propagate(self, nsteps=None):
-        """Advance the electrons by ``nsteps`` electronic steps."""
+    def propagate(self, nsteps=None, r_start=None, r_end=None):
+        """
+        Advance the electrons by ``nsteps`` electronic steps.
+
+        If ``r_start`` and ``r_end`` are given, the ionic potential is rebuilt
+        at the MIDPOINT of every electronic sub-step, with the ions interpolated
+        linearly between the two. Without this the electrons cross the whole
+        ionic step seeing V_ion frozen at the endpoint - a sudden jump rather
+        than ion motion - which is an O(dt_ion) error in the coupling and drags
+        the scheme down to first order even though velocity Verlet is second.
+        Linear interpolation is the right choice here because it is exactly the
+        constant-velocity motion velocity Verlet assumes over one step.
+        """
         nsteps = self.nsub if nsteps is None else nsteps
-        for _ in range(nsteps):
+        moving = r_start is not None and r_end is not None
+        if moving:
+            r0 = np.asarray(r_start, dtype=float)
+            dr = self._step_displacement(r_start, r_end)
+        for _k in range(nsteps):
+            if moving:
+                self._restart_pseudo(r0 + dr * ((_k + 0.5) / nsteps))
             if self.projectile is not None:
                 # midpoint keeps Crank-Nicolson second order
                 self.propagator.hamiltonian.v = \
@@ -245,38 +311,134 @@ class EhrenfestCalculator(Calculator):
                    f"(tol {self.norm_tol:.1e}) at t = {self.time:.6f} a.u. "
                    f"Reduce dt_elec, raise max_pc, or check the Hamiltonian.")
 
-    # ------------------------------------------------------------ ASE hooks
-    def calculate(self, atoms=None, properties=['energy'], system_changes=all_changes):
-        Calculator.calculate(self, atoms, properties, system_changes)
+    def _restart_pseudo(self, positions):
+        """Rebuild the ionic potential with the ions at ``positions`` (Angstrom)."""
+        atoms = self.atoms.copy()
+        atoms.positions = np.asarray(positions, dtype=float)
         ions = Ions.from_ase(atoms)
-
-        # the ions have moved: rebuild the ionic potential on the same grid
         for key, func in self.evaluator.funcDict.items():
             if getattr(func, 'type', None) == 'PSEUDO':
                 func.restart(grid=self.rho.grid, ions=ions)
+
+    def _step_displacement(self, r_start, r_end):
+        """
+        r_end - r_start under the minimum-image convention.
+
+        ASE integrators do not wrap positions, so normally this is just the
+        difference. The guard matters if anything upstream wrapped the atoms
+        into the cell between steps: a raw difference would then sweep an atom
+        right across the box during the interpolation below.
+        """
+        d = np.asarray(r_end, float) - np.asarray(r_start, float)
+        if self.atoms is not None:
+            cell = np.diag(np.asarray(self.atoms.get_cell()))
+        else:
+            # propagate() called directly, outside the ASE hook: fall back to
+            # the density grid, whose lattice is in bohr rather than Angstrom
+            cell = np.diag(np.asarray(self.rho.grid.lattice)) \
+                * LEN_CONV["Bohr"]["Angstrom"]
+        if np.all(cell > 0):
+            d -= cell * np.round(d / cell)
+        return d
+
+    # ------------------------------------------------------------ ASE hooks
+    def _energy(self, energy_of, atoms):
+        """
+        Total energy in eV, chosen to stay CONSISTENT with the forces.
+
+        Ehrenfest dynamics conserves E_elec + KE_ion, but only because
+        F_I = -dE_elec/dR_I. Report an energy from one functional while the ions
+        move under forces from another and that identity is broken, so nothing
+        is conserved - not as an implementation flaw but as arithmetic.
+
+        So the energy follows the force source by default ('auto'):
+          no qepy_calculator -> OF energy with OF forces   (Ehrenfest, conserves)
+          qepy_calculator    -> KS energy with KS forces   (BOMD ions, conserves)
+        'of' forces the DFTpy energy even alongside KS forces. That combination
+        does not conserve anything; it is kept because it is occasionally what
+        you want to look at, and the OF energy is always available in
+        ``atoms.info['dftpy_energy_of']`` regardless.
+        """
+        if self.qepy_calculator is None or self.energy_from == 'of':
+            return energy_of
+        return self._ks[0]
+
+    def _ks_results(self, atoms):
+        """
+        (energy in eV, forces in eV/A) from the external calculator.
+
+        Both come from ONE SCF: ASE caches the result on the calculator, so
+        asking for the energy after the forces does not repeat the work. Runs on
+        a copy so the caller's ``atoms.calc`` is left alone.
+        """
+        a = atoms.copy()
+        a.calc = self.qepy_calculator
+        forces = np.asarray(a.get_forces())          # eV/A already
+        energy = float(a.get_potential_energy())     # eV
+        return energy, forces
+
+    def _forces(self, ions, atoms):
+        """
+        Ion forces in eV/A, from the OF evaluator or from ``qepy_calculator``.
+
+        The two branches have DIFFERENT native units and only ONE of them needs
+        converting:
+          - ``evaluator.get_forces`` is DFTpy's own, and returns Ha/bohr.
+          - any ASE calculator, QEpyCalculator included, returns eV/A already
+            - it has already converted from the Ry/au that QE prints.
+        Converting the second branch as well would scale those forces by 25.7.
+        See :func:`ks_forces` for the measurement that establishes this.
+        """
+        if self.qepy_calculator is None:
+            return np.asarray(self.evaluator.get_forces(self.rho, ions=ions)) \
+                * FORCE_CONV["Ha/Bohr"]["eV/A"]
+
+        forces = self._ks[1]
+        if self.store_of_forces:
+            # keep the OF forces alongside, so the two can be compared for free
+            # at every step of a production run
+            atoms.info['dftpy_forces_of'] = \
+                np.asarray(self.evaluator.get_forces(self.rho, ions=ions)) \
+                * FORCE_CONV["Ha/Bohr"]["eV/A"]
+        return forces
+
+    def calculate(self, atoms=None, properties=['energy'], system_changes=all_changes):
+        Calculator.calculate(self, atoms, properties, system_changes)
+        ions = Ions.from_ase(atoms)
+        r_new = atoms.get_positions()
 
         # Propagate only when the geometry actually changed. ASE may call
         # calculate() more than once for the same positions, and propagating on
         # each call would decouple the electronic clock from the ionic one.
         if self._first_call:
+            self._restart_pseudo(r_new)
             self._first_call = False
         elif 'positions' in system_changes or 'cell' in system_changes:
-            self.propagate(self.nsub)
+            # Carry the ions across the step WITH the electrons, rather than
+            # teleporting them to the endpoint before propagating.
+            r_old = self._prev_positions
+            if r_old is None:
+                r_old = r_new
+            self.propagate(self.nsub, r_start=r_old, r_end=r_new)
+            # leave the potential at the endpoint for the observables below
+            self._restart_pseudo(r_new)
+        else:
+            self._restart_pseudo(r_new)
+        self._prev_positions = np.array(r_new, dtype=float)
 
         ene = self.evaluator(self.rho, current=self.j, calcType=['E']).energy
         e_vw = self._vw(self.rho).energy
         e_j = current_kinetic_energy(self.j, self.rho)
-        energy = (ene + e_vw + e_j) * ENERGY_CONV["Hartree"]["eV"]
-        
-         if qepy_calculator is not None:
-            forces = qepy_calculator.get_forces()
-            forces = np.asarray(forces) * FORCE_CONV["Ry/Bohr"]["ev/A"]
-        else:
-            forces = self.evaluator.get_forces(self.rho, ions=ions)
-            forces = np.asarray(forces) * FORCE_CONV["Ha/Bohr"]["eV/A"]
+        energy_of = (ene + e_vw + e_j) * ENERGY_CONV["Hartree"]["eV"]
+
+        # one external SCF per ionic step, reused by both _forces and _energy
+        self._ks = self._ks_results(atoms) if self.qepy_calculator else None
+        forces = self._forces(ions, atoms)
+        energy = self._energy(energy_of, atoms)
 
         self.results['energy'] = energy
         self.results['forces'] = forces
+        atoms.info['dftpy_energy_of'] = energy_of
         atoms.info['dftpy_time_au'] = self.time
         atoms.info['dftpy_nelec'] = float(self.rho.integral())
         atoms.info['dftpy_e_vw'] = e_vw
