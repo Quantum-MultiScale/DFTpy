@@ -13,7 +13,7 @@ from .kernel import WTKernelTable
 __all__ = ["HC"]
 
 
-def get_kflist(kf, kf0=None, ratio=1.2, nsp=None, delta=None, kfmin=None, kfmax=None, savetol=1E-16,
+def get_kflist(kf, kf0=None, ratio=1.2, nsp=None, delta=None, kfmin=None, kfmax=None, savetol=1E-12,
                ke_kernel_saved=None, **kwargs):
     if ke_kernel_saved is not None:
         kfmin_prev = ke_kernel_saved['kfmin']
@@ -53,8 +53,10 @@ def get_kflist(kf, kf0=None, ratio=1.2, nsp=None, delta=None, kfmin=None, kfmax=
         kflists = kfmin * ratio ** np.arange(nsp)
         # kflists = np.geomspace(kfmin, kfmax, nsp)
 
-    kflists[0] -= savetol  # for numerical safe
-    kflists[-1] += savetol  # for numerical safe
+    # Relative padding: an absolute 1e-16 is below double-precision spacing for kF ~ 1,
+    # which left grid points at the extreme kF outside every interpolation interval.
+    kflists[0] *= 1.0 - savetol  # for numerical safe
+    kflists[-1] *= 1.0 + savetol  # for numerical safe
     sprint('nsp', len(kflists), np.max(kflists), np.min(kflists), kf0, comm=kf.mp.comm, level=1)
     if ke_kernel_saved is not None:
         ke_kernel_saved['kfmin'] = kfmin

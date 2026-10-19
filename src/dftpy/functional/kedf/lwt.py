@@ -101,7 +101,7 @@ def LWTPotentialEnergy(
     """
 
     KE_kernel_saved = ke_kernel_saved
-    savetol = 1e-16
+    savetol = 1e-12
     q = rho.grid.get_reciprocal().q
     rho0 = rho.amean()
     kf0 = 2.0 * np.cbrt(3.0 * np.pi ** 2 * rho0)
@@ -166,8 +166,10 @@ def LWTPotentialEnergy(
         nsp = int(np.ceil(np.log(kfMax / kfMin) / np.log(ratio))) + 1
         kflists = kfMin * ratio ** np.arange(nsp)
         # kflists = np.geomspace(kfMin, kfMax, nsp)
-    kflists[0] -= savetol  # for numerical safe
-    kflists[-1] += savetol  # for numerical safe
+    # Relative padding: an absolute 1e-16 is below double-precision spacing for kF ~ 1,
+    # which left grid points at the extreme kF outside every interpolation interval.
+    kflists[0] *= 1.0 - savetol  # for numerical safe
+    kflists[-1] *= 1.0 + savetol  # for numerical safe
     sprint('nsp', nsp, kfMax, kfMin, kf0, np.max(kflists), np.min(kflists), comm=rho.mp.comm, level=1)
     # -----------------------------------------------------------------------
     kernel0 = np.empty_like(q)
