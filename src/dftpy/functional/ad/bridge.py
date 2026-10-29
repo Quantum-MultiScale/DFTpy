@@ -62,7 +62,7 @@ def register_ad_gga(model: SemilocalFunctionalABC, *, name: Optional[str] = None
             qt = torch.as_tensor(np.array(q, dtype=np.float64, order='C', copy=True),
                                  device=device).requires_grad_(need)
         with torch.set_grad_enabled(need):
-            f = model(u, qt, scalar_tensors)
+            f = model(u, coefficients=scalar_tensors, q=qt)
             if not isinstance(f, torch.Tensor) or f.shape != u.shape:
                 raise ValueError("enhancement must be pointwise and return the same shape as s2")
             if need:
