@@ -24,10 +24,10 @@ classifiers = [
 	'Development Status :: 3 - Alpha',
 	'Intended Audience :: Science/Research',
 	'Programming Language :: Python :: 3',
-	'Programming Language :: Python :: 3.9',
 	'Programming Language :: Python :: 3.10',
 	'Programming Language :: Python :: 3.11',
-	'Programming Language :: Python :: 3.12', # some optional dependencies are not available for this version
+	'Programming Language :: Python :: 3.12',
+	'Programming Language :: Python :: 3.13',
 	'Topic :: Scientific/Engineering :: Chemistry',
     'Topic :: Scientific/Engineering :: Physics',
     "Operating System :: POSIX :: Linux",
@@ -42,9 +42,9 @@ dependencies = [
 ]
 
 [project.urls]
-homepage = "https://gitlab.com/pavanello-research-group/dftpy"
+homepage = "https://github.com/Quantum-MultiScale/DFTpy"
 documentation = "http://dftpy.rutgers.edu"
-source = "https://gitlab.com/pavanello-research-group/dftpy"
+source = "https://github.com/Quantum-MultiScale/DFTpy"
 
 [project.scripts]
 dftpy = 'dftpy.cui.main:main'
@@ -58,6 +58,7 @@ extra = [
 	"pymatgen>=2024.8.9",
 	"scikit-image>=0.24.0",
 	"upf-to-json>=0.9.5",
+	"torch>=2.0.0",
 ]
 mpi = [
     "mpi4py>=4.0.3",
