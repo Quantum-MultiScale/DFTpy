@@ -15,7 +15,7 @@ class Test(unittest.TestCase):
         print("*" * 50)
         print("Testing loading pseudopotentials")
         ions, rho, _ = io.read_all(dftpy_data_path / "ti.xsf")
-        PP_list = [dftpy_data_path / "ti_pbe_v1.4.uspp.F.UPF"]
+        PP_list = {'Ti':dftpy_data_path / "ti_pbe_v1.4.uspp.F.UPF"}
         grid = rho.grid
 
         pseudo = LocalPseudo(grid=grid, ions=ions, PP_list=PP_list, PME=False)
