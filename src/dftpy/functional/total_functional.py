@@ -246,9 +246,5 @@ class TotalFunctional(AbstractFunctional):
             for j in range(i - 1, -1, -1):
                 stress["TOTAL"][i, j] = stress["TOTAL"][j, i]
 
-        keys, values = zip(*stress.items())
-        values = rho.mp.vsum(values)
-        stress = dict(zip(keys, values))
-
         if not split : stress = stress["TOTAL"]
         return stress

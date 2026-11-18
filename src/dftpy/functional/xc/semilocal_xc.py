@@ -342,26 +342,23 @@ def LDA(rho, calcType={"E", "V"}, **kwargs):
     return OutFunctional
 
 def _LDAStress(density, potential, energy=0.0, **kwargs):
-    P = energy - np.sum(potential * density) * density.grid.dV
+    P = energy - density.mp.asum(potential * density) * density.grid.dV
     stress = np.eye(3) * P
     return stress / density.grid.volume
 
 
 def _GGAStress(density, potential, energy=0.0, gradient=None, sigma=None, vsigma=None, **kwargs):
-    P = energy - np.sum(potential * density) * density.grid.dV
+    P = energy - density.mp.asum(potential * density) * density.grid.dV
     stress = np.eye(3) * P
     nspin = density.rank
     for i in range(3):
         for j in range(i, 3):
             if nspin > 1:
-                stress[i, j] -= 2.0 * np.einsum("ijk, ijk, ijk -> ", gradient[0][i], gradient[0][j],
-                                                vsigma[0]) * density.grid.dV
-                stress[i, j] -= 2.0 * np.einsum("ijk, ijk, ijk -> ", gradient[0][i], gradient[1][j],
-                                                vsigma[1]) * density.grid.dV
-                stress[i, j] -= 2.0 * np.einsum("ijk, ijk, ijk -> ", gradient[1][i], gradient[1][j],
-                                                vsigma[2]) * density.grid.dV
+                stress[i, j] -= 2.0 * density.mp.asum(gradient[0][i] * gradient[0][j] * vsigma[0]) * density.grid.dV
+                stress[i, j] -= 2.0 * density.mp.asum(gradient[0][i] * gradient[1][j] * vsigma[1]) * density.grid.dV
+                stress[i, j] -= 2.0 * density.mp.asum(gradient[1][i] * gradient[1][j] * vsigma[2]) * density.grid.dV
             else:
-                stress[i, j] -= 2.0 * np.einsum("ijk, ijk, ijk -> ", gradient[i], gradient[j], vsigma) * density.grid.dV
+                stress[i, j] -= 2.0 * density.mp.asum(gradient[i] * gradient[j] * vsigma) * density.grid.dV
             stress[j, i] = stress[i, j]
     return stress / density.grid.volume
 

@@ -104,7 +104,7 @@ def vonWeizsackerStress(rho, y=1.0, energy=None, **kwargs):
         dRho_ij.append((1j * g[i] * rhoG).ifft(force_real=True))
     for i in range(3):
         for j in range(i, 3):
-            Etmp = -0.25 / rho.grid.volume * rho.grid.dV * np.einsum("ijk -> ", dRho_ij[i] * dRho_ij[j] / rho)
+            Etmp = -0.25 / rho.grid.volume * rho.grid.dV * rho.mp.asum(dRho_ij[i] * dRho_ij[j] / rho)
             stress[i, j] = stress[j, i] = Etmp.real * y
     return stress
 

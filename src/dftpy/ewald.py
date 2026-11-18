@@ -547,7 +547,8 @@ class ewald(object):
             if self.verbose:
                 sprint("Ewald_Stress\n", Ewald_Stress, s_rec)
 
-            self._stress = Ewald_Stress
+            # the real- and reciprocal-space parts are rank-local sums
+            self._stress = self.mp.vsum(Ewald_Stress)
         return self._stress
 
     @timer()

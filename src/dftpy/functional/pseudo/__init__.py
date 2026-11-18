@@ -435,7 +435,7 @@ class LocalPseudo(AbstractLocalPseudo):
         for i in range(3):
             for j in range(i, 3):
                 den = (g[i] * g[j]) * potrhodd
-                stress[i,j] -= den[mask].sum().real / grid.volume * 2.0
+                stress[i,j] -= grid.mp.asum(den[mask]).real / grid.volume * 2.0
                 stress[j, i] = stress[i, j]
         return stress / grid.volume
 
@@ -585,7 +585,7 @@ class LocalPseudo(AbstractLocalPseudo):
                 # den = (g[i]*g[j])[np.newaxis] * rhoGV_q
                 # stress[i, j] = (np.einsum('ijk->', den)).real / rho.grid.volume
                 den = (g[i][mask] * g[j][mask]) * rhoGV_q[mask]
-                stress[i, j] = stress[j, i] = -(np.einsum("i->", den)).real / self.grid.volume * 2.0
+                stress[i, j] = stress[j, i] = -self.grid.mp.asum(den).real / self.grid.volume * 2.0
                 if i == j:
                     stress[i, j] -= energy
         stress /= self.grid.volume
@@ -711,7 +711,7 @@ class LocalPseudo(AbstractLocalPseudo):
             for i in range(3):
                 for j in range(i, 3):
                     den = (g[i][mask] * g[j][mask]) * rhoGBV[mask] * invq[mask]
-                    stress[i, j] -= (np.einsum("i->", den)).real / self.grid.volume ** 2
+                    stress[i, j] -= self.grid.mp.asum(den).real / self.grid.volume ** 2
         stress *= 2.0 * self.grid.nnrR
         for i in range(3):
             for j in range(i, 3):

@@ -1314,13 +1314,13 @@ def GGA(rho: DirectField, functional: str = "LKT", calcType: Set[str] = {"E", "V
             raise AttributeError("Stress not support MGGA yet")
         stress = np.zeros((3,3))
         vkin2 = tf * results['dFds2'] / rho83
-        p = OutFunctional.energy  - (pot1 * rho).sum() * rho.grid.dV
+        p = OutFunctional.energy  - rho.mp.asum(pot1 * rho) * rho.grid.dV
         for i in range(3):
-            p -= (rhoGrad[i] * rhoGrad[i] * vkin2).sum() * rho.grid.dV
+            p -= rho.mp.asum(rhoGrad[i] * rhoGrad[i] * vkin2) * rho.grid.dV
         for i in range(3):
             stress[i,i] = p
             for j in range(i, 3):
-                stress[i, j] -= (vkin2 * rhoGrad[i] * rhoGrad[j]).sum() * rho.grid.dV
+                stress[i, j] -= rho.mp.asum(vkin2 * rhoGrad[i] * rhoGrad[j]) * rho.grid.dV
                 stress[j, i] = stress[i, j]
         OutFunctional.stress = stress/rho.grid.volume
     return OutFunctional
