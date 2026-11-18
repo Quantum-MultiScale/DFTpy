@@ -60,3 +60,12 @@ Next action: owner decides whether to push and open PRs, and in what order (sugg
 Owned jobs/timers: none.
 
 Addendum 2026-11-18 (later): gpt-6.2-astra review ran (read-only). Applied to fix/mpi-nonlocal-energy: LWT line-integral energy reduced, NG/MG energies use mp.asum (safe for ndarray energy densities), Barrier removed from the new test. Confirmed by probe and NOT fixed: KEDF stress under MPI is over-counted on dev (TF diagonal doubled on 2 ranks) and stays wrong on the branch; needs its own PR. integration/all-fixes predates the amend. Astra's other new findings (unverified by the coordinator): spin-polarized KEDF potential averaged across channels (kedf/__init__.py:178), stale stress energy cache (:216), TotalFunctional overwriting same-type components, td/utils.py kick mask mutating cached grid coordinates, TF energy density missing x.
+
+## Handoff 2026-11-18 (evening)
+
+- PR #17 (https://github.com/Quantum-MultiScale/DFTpy/pull/17) is open with fix/mpi-nonlocal-energy at c2bcdd7 (owner pushed and force-pushed the amended commit).
+- New local branch fix/mpi-stress, commit 09898d8, stacked on c2bcdd7. Not pushed. Every stress function now returns the global tensor and get_stress no longer sums over ranks. New test tests/unit/test_stress_mpi.py fails on c2bcdd7 and passes with the fix on 2, 3 and 4 ranks. Serial suite 51 passed, 5 skipped; full suite under mpirun exits 0 on 2 and 3 ranks.
+- Not runtime-tested in the stress fix: LibXC stress paths (no pylibxc), spin-polarized GGA XC stress, NLCC calc_stress_cc.
+- Pre-existing, not ours: tests/unit/test_gaussian_valence_mpi.py does not finish within 150 s on 4 ranks on unmodified origin/dev e686db1 either (2 and 3 ranks pass). Cause not investigated.
+- Three Sonnet subagents verified the gpt-6.2-astra memo; reports in the session scratchpad (verify_a/b/c). Ranked next fixes: kick mask wiping grid.r (td/utils.py:12), POSCAR reader, TF energydensity missing x, finite-T stress, para_current.
+- Next action: owner decides when to push fix/mpi-stress (it depends on PR #17 merging first, or can be opened as a stacked PR).
