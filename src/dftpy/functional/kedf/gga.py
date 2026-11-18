@@ -1288,7 +1288,7 @@ def GGA(rho: DirectField, functional: str = "LKT", calcType: Set[str] = {"E", "V
         energydensity = tf * results['F']
         if 'D' in calcType:
             OutFunctional.energydensity = energydensity
-        OutFunctional.energy = energydensity.sum() * rhom.grid.dV
+        OutFunctional.energy = energydensity.integral()
 
     if 'V' in calcType:
         pot1 = 5.0 / 3.0 * C_TF * rho23 * results['F']

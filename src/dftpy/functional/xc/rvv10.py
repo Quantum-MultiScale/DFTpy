@@ -82,7 +82,7 @@ class RVV10NL(AbstractFunctional) :
         self.get_thetas_on_grid(density)
         #
         energy = self.vdw_energy()
-        energy = energy + self.beta * density.sum() * density.grid.dV
+        energy = energy + self.beta * density.integral()
         energy *= 0.5 # I don't understand why?
         self.energy = energy
         if 'V' in calcType :
@@ -182,7 +182,7 @@ class RVV10NL(AbstractFunctional) :
             if grid.mp.is_root :
                 e0 = (u_vdw[:,0,0,0] * np.conj(self.thetas_g[:,0,0,0])).sum()
                 energy -= e0
-        energy = 0.5*energy.real / grid.volume
+        energy = 0.5 * grid.mp.vsum(energy.real) / grid.volume
         self.thetas_g[:] = u_vdw
         return energy
 

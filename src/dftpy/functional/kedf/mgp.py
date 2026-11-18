@@ -59,7 +59,7 @@ def MGP(
     NL = FunctionalOutput(name="NL")
     if "E" in calcType or 'D' in calcType:
         energydensity = WTEnergyDensity(rho, rho0, KE_kernel, alpha, beta)
-        NL.energy = energydensity.sum() * rho.grid.dV
+        NL.energy = energydensity.integral()
         if 'D' in calcType:
             NL.energydensity = energydensity
     if "V" in calcType:

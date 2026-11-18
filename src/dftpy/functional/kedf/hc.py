@@ -263,7 +263,7 @@ def one_point_potential_energy(
     NL = FunctionalOutput(name="NL")
     energydensity = rhoAlpha * pot1
     # energydensity = rhoBeta * pot2
-    NL.energy = energydensity.sum() * rho.grid.dV
+    NL.energy = energydensity.integral()
     if 'D' in calcType:
         NL.energydensity = energydensity
     # -----------------------------------------------------------------------

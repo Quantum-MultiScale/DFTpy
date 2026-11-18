@@ -335,7 +335,7 @@ class NLGGA(AbstractFunctional):
                 energydensity += wn * func_nl.energydensity
             else:
                 energydensity = func_gga.energydensity
-            energy = energydensity.sum() * density.grid.dV
+            energy = density.mp.asum(energydensity) * density.grid.dV
             obj.energy = energy
 
         if split : obj = {'NG': obj}
@@ -478,7 +478,7 @@ class MIXGGAS(AbstractFunctional):
         if 'E' in calcType:
             energydensity = interpolate_f * func_stv.energydensity
             energydensity += (1 - interpolate_f) * func_gga.energydensity
-            energy = energydensity.sum() * density.grid.dV
+            energy = density.mp.asum(energydensity) * density.grid.dV
             obj.energy = energy
 
         if split : obj = {'MG': obj}
