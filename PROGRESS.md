@@ -42,7 +42,7 @@ Six fixes are committed on local branches, each cut from origin/dev e686db1, eac
 
 | Branch | Commit | Fix |
 | --- | --- | --- |
-| fix/mpi-nonlocal-energy | 3728199 | Nonlocal/GGA KEDF and rVV10 energies were rank-local under MPI; WT+LDA+Hartree total on 2 ranks was 4.273 Ha vs 0.354 Ha serial |
+| fix/mpi-nonlocal-energy | c2bcdd7 (amended after Astra review) | Nonlocal/GGA KEDF and rVV10 energies were rank-local under MPI; WT+LDA+Hartree total on 2 ranks was 4.273 Ha vs 0.354 Ha serial |
 | fix/lbfgs-two-loop | 716ea15 | L-BFGS two-loop skipped the oldest pair; history held Bound+1 pairs |
 | fix/tile | e3272b0 | grid.tile() TypeError; field.tile() dropped the tiled grid |
 | fix/gga-params-mutation | 1f22170 | GGAFs overwrote GGA_KEDF_list defaults; GGA() extended the caller's list |
@@ -58,3 +58,5 @@ Not done: no independent review of the diffs. Ideation with gpt-6.2-astra failed
 
 Next action: owner decides whether to push and open PRs, and in what order (suggest MPI energy first, then L-BFGS). Remaining backlog items are in the session memory file dftpy-verified-roi-backlog.
 Owned jobs/timers: none.
+
+Addendum 2026-11-18 (later): gpt-6.2-astra review ran (read-only). Applied to fix/mpi-nonlocal-energy: LWT line-integral energy reduced, NG/MG energies use mp.asum (safe for ndarray energy densities), Barrier removed from the new test. Confirmed by probe and NOT fixed: KEDF stress under MPI is over-counted on dev (TF diagonal doubled on 2 ranks) and stays wrong on the branch; needs its own PR. integration/all-fixes predates the amend. Astra's other new findings (unverified by the coordinator): spin-polarized KEDF potential averaged across channels (kedf/__init__.py:178), stale stress energy cache (:216), TotalFunctional overwriting same-type components, td/utils.py kick mask mutating cached grid coordinates, TF energy density missing x.
