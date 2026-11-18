@@ -37,7 +37,7 @@ def WTPotentialEdens(rho, rho0, Kernel, alpha, beta):
 
 def WTEnergy(rho, rho0, Kernel, alpha, beta):
     energydensity = WTEnergyDensity(rho, rho0, Kernel, alpha, beta)
-    energy = energydensity.sum() * rho.grid.dV
+    energy = energydensity.integral()
     return energy
 
 
@@ -127,6 +127,6 @@ def WT(rho, x=1.0, y=1.0, sigma=None, alpha=5.0 / 6.0, beta=5.0 / 6.0, rho0=None
             energydensity = WTEnergyDensity(rho, rho0, KE_kernel, alpha, beta)
         if 'D' in calcType:
             NL.energydensity = energydensity
-        NL.energy = energydensity.sum() * rho.grid.dV
+        NL.energy = energydensity.integral()
 
     return NL

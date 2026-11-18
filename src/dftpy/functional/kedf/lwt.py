@@ -324,7 +324,7 @@ def LWTPotentialEnergy(
     NL = FunctionalOutput(name="NL")
     # if 'E' in calcType or 'D' in calcType :
     energydensity = rhoAlpha * pot1
-    NL.energy = energydensity.sum() * rho.grid.dV
+    NL.energy = energydensity.integral()
     if 'D' in calcType:
         NL.energydensity = energydensity
     # -----------------------------------------------------------------------
@@ -489,7 +489,7 @@ def LWTLineIntegral(
         pot += mgpe
 
     # -----------------------------------------------------------------------
-    ene = np.einsum("ijk, ijk ->", rho, pot1) * rho.grid.dV * dt * alpha
+    ene = rho.mp.einsum("ijk, ijk ->", rho, pot1) * rho.grid.dV * dt * alpha
     # ene2 = np.einsum("ijk, ijk ->", rho, pot) * rho.grid.dV
     # sprint('ene', ene, ene2, level=1)
     # -----------------------------------------------------------------------
