@@ -97,7 +97,7 @@ def WTStress(rho, x=1.0, y=1.0, sigma=None, alpha=5.0 / 6.0, beta=5.0 / 6.0, ene
             else:
                 fac = 0.0
             den = (g[i][mask] * g[j][mask] * invgg[mask] - fac) * DDrho[mask]
-            stress[i, j] = stress[j, i] = (np.einsum("i->", den)).real
+            stress[i, j] = stress[j, i] = rho.mp.asum(den).real
     stress *= np.pi ** 2 / (alpha * beta * rho0 ** (alpha + beta - 2) * tkf / 2.0)
     for i in range(3):
         stress[i, i] -= 2.0 / 3.0 * energy / rho.grid.volume

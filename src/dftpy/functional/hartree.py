@@ -84,7 +84,7 @@ def HartreeFunctionalStress(density, energy=None):
     for i in range(3):
         for j in range(i, 3):
             den = (g[i][mask] * g[j][mask]) * rhoG2[mask]
-            Etmp = np.sum(den)
+            Etmp = rho.grid.mp.asum(den)
             stress[i, j] = stress[j, i] = Etmp.real * 8.0 * np.pi / rho.grid.volume ** 2
             if i == j:
                 stress[i, j] -= energy / rho.grid.volume
