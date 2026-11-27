@@ -839,7 +839,8 @@ class ewald(object):
         strf = strf.ifft(force_real=True)
 
         F_rec = np.zeros((self.ions.nat, 3))
-        cell_inv = np.linalg.inv(self.ions.cell)
+        # r = s @ cell, so row-vector gradients transform with cell^{-T}.
+        cell_inv_T = np.linalg.inv(self.ions.cell).T
 
         ## For speed
         ixyzA = np.mgrid[: self.order, : self.order, : self.order].reshape((3, -1))
@@ -867,7 +868,7 @@ class ewald(object):
             l123A = np.mod(1 + np.floor(Up).astype(np.int32).reshape((3, 1)) - ixyzA, nrR.reshape((3, 1)))
             mask = self.Bspline.get_Qarray_mask(l123A)
             F_rec[i] -= np.sum(
-                np.matmul(Q_derivativeA.T, cell_inv)[mask] * strf[l123A[0][mask], l123A[1][mask], l123A[2][mask]][:,
+                np.matmul(Q_derivativeA.T, cell_inv_T)[mask] * strf[l123A[0][mask], l123A[1][mask], l123A[2][mask]][:,
                                                              np.newaxis], axis=0
             )
             F_rec[i] *= self.ions.charges[i]

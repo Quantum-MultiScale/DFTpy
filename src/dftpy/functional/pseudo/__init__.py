@@ -638,8 +638,8 @@ class LocalPseudo(AbstractLocalPseudo):
         Barray = np.conjugate(Barray)
         denG = rhoG * Barray
         nrR = self.grid.nrR
-        # cell_inv = np.linalg.inv(self.ions.positions[0].cell.lattice)
-        cell_inv = reciprocal_grid.lattice.T / 2 / np.pi
+        # r = s @ cell; reciprocal lattice / (2*pi) is cell^{-T}.
+        cell_inv_T = reciprocal_grid.lattice / (2 * np.pi)
         Forces = np.zeros((self.ions.nat, 3))
         ixyzA = np.mgrid[: self.BsplineOrder, : self.BsplineOrder, : self.BsplineOrder].reshape((3, -1))
         Q_derivativeA = np.zeros((3, self.BsplineOrder * self.BsplineOrder * self.BsplineOrder))
@@ -670,7 +670,7 @@ class LocalPseudo(AbstractLocalPseudo):
                     ).reshape(-1)
                     l123A = np.mod(1 + np.floor(Up).astype(np.int32).reshape((3, 1)) - ixyzA, nrR.reshape((3, 1)))
                     mask = self.Bspline.get_Qarray_mask(l123A)
-                    Forces[i] = -np.sum(np.matmul(Q_derivativeA.T, cell_inv)[mask] * rhoPB[
+                    Forces[i] = -np.sum(np.matmul(Q_derivativeA.T, cell_inv_T)[mask] * rhoPB[
                                                                                          l123A[0][mask], l123A[1][mask],
                                                                                          l123A[2][mask]][:, np.newaxis],
                                         axis=0)
