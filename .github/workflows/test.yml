@@ -32,7 +32,7 @@ jobs:
     - name: Install dependencies (FFTW + Open MPI)
       run: |
         sudo apt-get update
-        sudo apt-get install -y libfftw3-dev libopenmpi-dev
+        sudo apt-get install -y libfftw3-dev libopenmpi-dev openmpi-bin
 
     - name: Setup Python virtual environment
       run: |
@@ -44,6 +44,17 @@ jobs:
       run: |
         source .venv/bin/activate
         pytest
+
+    - name: Run PME force MPI regressions (2 and 4 ranks)
+      timeout-minutes: 10
+      env:
+        OMP_NUM_THREADS: "1"
+        OPENBLAS_NUM_THREADS: "1"
+        MKL_NUM_THREADS: "1"
+      run: |
+        source .venv/bin/activate
+        mpiexec --oversubscribe -n 2 python -m pytest --with-mpi tests/unit/test_pme_forces_mpi.py
+        mpiexec --oversubscribe -n 4 python -m pytest --with-mpi tests/unit/test_pme_forces_mpi.py
 
 #      - name: Upload coverage reports to Codecov
 #        uses: codecov/codecov-action@v5

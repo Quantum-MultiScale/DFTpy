@@ -304,7 +304,7 @@ class DirectGrid(BaseGrid):
         Parameters
         ----------
         lattice : array_like[3,3]
-            matrix containing the direct lattice vectors (as its colums)
+            matrix containing the direct lattice vectors (as its rows)
         """
         self.init_options = locals()
         for k in ['__class__', 'self', 'kwargs', 'uppergrid'] :
@@ -514,7 +514,7 @@ class ReciprocalGrid(BaseGrid):
         Parameters
         ----------
         lattice : array_like[3,3]
-            matrix containing the direct lattice vectors (as its colums)
+            matrix containing the reciprocal lattice vectors (as its rows)
         """
         self.init_options = locals()
         for k in ['__class__', 'self', 'kwargs', 'uppergrid'] :
